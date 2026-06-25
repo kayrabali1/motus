@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, TextInput } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { SymbolView } from 'expo-symbols';
 import * as Notifications from 'expo-notifications';
@@ -13,15 +13,14 @@ const EXERCISES = [
 ];
 
 export default function AppsScreen() {
-  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes } = useMotusStore();
+  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount } = useMotusStore();
   const [isConfigModalVisible, setConfigModalVisible] = useState(false);
+  const [isShameModalVisible, setShameModalVisible] = useState(false);
+  const [shameText, setShameText] = useState('');
+  
+  const SHAME_PHRASE = "I am choosing cheap dopamine over my long-term health and fitness goals today. I give up.";
 
-  useEffect(() => {
-    loadState();
-    requestNotificationPermission();
-  }, []);
-
-  const requestNotificationPermission = async () => {
+  async function requestNotificationPermission() {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') {
       const { status: newStatus } = await Notifications.requestPermissionsAsync();
@@ -30,6 +29,11 @@ export default function AppsScreen() {
       }
     }
   };
+
+  useEffect(() => {
+    loadState();
+    requestNotificationPermission();
+  }, []);
 
   const handleSelectApps = async () => {
     try {
@@ -50,15 +54,24 @@ export default function AppsScreen() {
     }
   };
 
-  const confirmLock = () => {
+  const confirmLock = async () => {
     MotusScreenTime.blockApps();
     setConfigModalVisible(false);
+    const count = await MotusScreenTime.getActiveLockCount();
+    setActiveLockCount(count);
     Alert.alert("Success", "Apps have been locked. They will now require a physical challenge to open.");
   };
 
   const handleUnblock = () => {
+    setShameModalVisible(true);
+  };
+
+  const executeUnblock = () => {
     MotusScreenTime.unblockApps();
-    Alert.alert("Success", "All apps have been unblocked.");
+    setActiveLockCount(0);
+    setShameModalVisible(false);
+    setShameText('');
+    Alert.alert("Locks Removed", "Your apps are no longer restricted.");
   };
 
   return (
@@ -69,21 +82,35 @@ export default function AppsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <BlurView intensity={15} style={styles.infoCard} tint="light">
-          <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#39FF14" fallback={<View style={{ width: 40, height: 40 }}/>} />
-          <Text style={styles.infoText}>
-            Motus uses Apple's Screen Time API to securely block your selected apps. 
-            When blocked, opening them will redirect you here to complete your exercise.
-          </Text>
-        </BlurView>
+        {activeLockCount > 0 ? (
+          <BlurView intensity={20} style={[styles.infoCard, { borderColor: '#FF3B30' }]} tint="dark">
+            <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#FF3B30" fallback={<View style={{ width: 40, height: 40 }}/>} />
+            <Text style={[styles.infoText, { color: '#FF3B30', fontWeight: 'bold', fontSize: 18, marginTop: 12 }]}>
+              {activeLockCount} App{activeLockCount > 1 ? 's' : ''} Locked
+            </Text>
+            <Text style={[styles.infoText, { marginTop: 4 }]}>
+              Challenge: {repCount} {EXERCISES.find(e => e.id === selectedExercise)?.name}
+            </Text>
+          </BlurView>
+        ) : (
+          <BlurView intensity={15} style={styles.infoCard} tint="light">
+            <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#39FF14" fallback={<View style={{ width: 40, height: 40 }}/>} />
+            <Text style={styles.infoText}>
+              Motus uses Apple&apos;s Screen Time API to securely block your selected apps. 
+              When blocked, opening them will redirect you here to complete your exercise.
+            </Text>
+          </BlurView>
+        )}
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleSelectApps}>
-          <Text style={styles.primaryButtonText}>Select Apps to Lock</Text>
+          <Text style={styles.primaryButtonText}>{activeLockCount > 0 ? 'Modify Locked Apps' : 'Select Apps to Lock'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleUnblock}>
-          <Text style={styles.secondaryButtonText}>Remove All Locks</Text>
-        </TouchableOpacity>
+        {activeLockCount > 0 && (
+          <TouchableOpacity style={[styles.secondaryButton, { marginTop: 32 }]} onPress={handleUnblock}>
+            <Text style={[styles.secondaryButtonText, { color: '#FF3B30' }]}>Emergency Disable</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <Modal
@@ -128,7 +155,7 @@ export default function AppsScreen() {
             <View style={styles.repControlContainer}>
               <TouchableOpacity 
                 style={styles.repButton} 
-                onPress={() => setRepCount(Math.max(1, repCount - 5))}
+                onPress={() => setRepCount(Math.max(1, repCount - 1))}
               >
                 <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
               </TouchableOpacity>
@@ -139,7 +166,7 @@ export default function AppsScreen() {
 
               <TouchableOpacity 
                 style={styles.repButton} 
-                onPress={() => setRepCount(repCount + 5)}
+                onPress={() => setRepCount(repCount + 1)}
               >
                 <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
               </TouchableOpacity>
@@ -152,6 +179,52 @@ export default function AppsScreen() {
 
             <TouchableOpacity style={styles.cancelButton} onPress={() => setConfigModalVisible(false)}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isShameModalVisible}
+        onRequestClose={() => setShameModalVisible(false)}
+      >
+        <BlurView intensity={80} tint="dark" style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Walk of Shame</Text>
+            <Text style={styles.modalSubtitle}>To permanently remove your locks without exercising, type the following exact phrase:</Text>
+            
+            <View style={styles.shamePhraseContainer}>
+              <Text style={styles.shamePhraseText}>{SHAME_PHRASE}</Text>
+            </View>
+
+            <TextInput
+              style={styles.shameInput}
+              multiline
+              placeholder="Type the phrase here..."
+              placeholderTextColor="#666"
+              value={shameText}
+              onChangeText={setShameText}
+              selectionColor="#FF3B30"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <TouchableOpacity 
+              style={[styles.dangerButton, shameText !== SHAME_PHRASE && { opacity: 0.5 }]} 
+              onPress={executeUnblock}
+              disabled={shameText !== SHAME_PHRASE}
+            >
+              <Text style={styles.dangerButtonText}>I Give Up, Remove Locks</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelButton} onPress={() => {
+              setShameModalVisible(false);
+              setShameText('');
+            }}>
+              <Text style={styles.cancelButtonText}>Nevermind, I'll Keep Them</Text>
             </TouchableOpacity>
           </View>
         </BlurView>
@@ -357,6 +430,48 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 16,
     fontWeight: '600',
+  },
+  shamePhraseContainer: {
+    backgroundColor: 'rgba(255,59,48,0.1)',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.3)',
+    width: '100%',
+  },
+  shamePhraseText: {
+    color: '#FF3B30',
+    fontSize: 16,
+    lineHeight: 24,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  shameInput: {
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#3A3A3C',
+    borderRadius: 16,
+    padding: 16,
+    color: '#FFFFFF',
+    fontSize: 16,
+    minHeight: 100,
+    width: '100%',
+    marginBottom: 24,
+  },
+  dangerButton: {
+    backgroundColor: '#FF3B30',
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  dangerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
   },
 });
 

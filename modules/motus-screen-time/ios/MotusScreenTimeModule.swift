@@ -58,6 +58,25 @@ public class MotusScreenTimeModule: Module {
       if #available(iOS 15.0, *) {
         store.shield.applications = []
         store.shield.applicationCategories = ShieldSettings.ActivityCategoryPolicy.none
+        UserDefaults.standard.removeObject(forKey: "MotusBlockedApps")
+      }
+    }
+
+    AsyncFunction("getActiveLockCount") { (promise: Promise) in
+      if #available(iOS 15.0, *) {
+        let savedData = UserDefaults.standard.data(forKey: "MotusBlockedApps")
+        if let data = savedData {
+          do {
+            let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
+            promise.resolve(selection.applicationTokens.count + selection.categoryTokens.count)
+          } catch {
+            promise.resolve(0)
+          }
+        } else {
+          promise.resolve(0)
+        }
+      } else {
+        promise.resolve(0)
       }
     }
   }

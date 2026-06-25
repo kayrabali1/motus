@@ -5,6 +5,7 @@ declare class MotusScreenTimeModule extends NativeModule<{}> {
   showPicker(): Promise<boolean>;
   blockApps(): void;
   unblockApps(): void;
+  getActiveLockCount(): Promise<number>;
 }
 
 export default requireNativeModule<MotusScreenTimeModule>('MotusScreenTime');

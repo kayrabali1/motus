@@ -125,7 +125,7 @@ export default function AuthScreen() {
           </Animated.View>
 
           <View style={styles.socialContainer}>
-            <Animated.View entering={FadeInUp.delay(700).springify()}>
+            <Animated.View entering={FadeInUp.delay(700).springify()} style={{ flex: 0.47 }}>
               <TouchableOpacity 
                 style={styles.socialButton}
                 activeOpacity={0.8}
@@ -136,7 +136,7 @@ export default function AuthScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <Animated.View entering={FadeInUp.delay(800).springify()}>
+            <Animated.View entering={FadeInUp.delay(800).springify()} style={{ flex: 0.47 }}>
               <TouchableOpacity 
                 style={styles.socialButton}
                 activeOpacity={0.8}
@@ -300,7 +300,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     height: 56,
     borderRadius: 28,
-    flex: 0.47,
     borderWidth: 1,
     borderColor: '#2C2C2E',
   },

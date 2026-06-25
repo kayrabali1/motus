@@ -52,7 +52,7 @@ export default function SettingsScreen() {
       <View style={styles.repControlContainer}>
         <TouchableOpacity 
           style={styles.repButton} 
-          onPress={() => setRepCount(Math.max(1, repCount - 5))}
+          onPress={() => setRepCount(Math.max(1, repCount - 1))}
         >
           <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
         </TouchableOpacity>
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
 
         <TouchableOpacity 
           style={styles.repButton} 
-          onPress={() => setRepCount(repCount + 5)}
+          onPress={() => setRepCount(repCount + 1)}
         >
           <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
         </TouchableOpacity>

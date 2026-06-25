@@ -7,7 +7,11 @@ public class MotusVisionModule: Module {
     Name("MotusVision")
 
     Function("playSuccessSound") {
-      AudioServicesPlaySystemSound(1025) // Reassuring "Ding"
+      DispatchQueue.main.async {
+          AudioServicesPlaySystemSound(1000)
+          let generator = UINotificationFeedbackGenerator()
+          generator.notificationOccurred(.success)
+      }
     }
 
     View(MotusVisionView.self) {
@@ -124,9 +128,9 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
                     repCount += 1
                     if self.playSound {
                         if self.repCount == self.targetReps {
-                            AudioServicesPlaySystemSound(1025)
+                            self.playSuccessSound()
                         } else {
-                            AudioServicesPlaySystemSound(1322)
+                            self.playNormalSound()
                         }
                     }
                     DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
@@ -147,9 +151,9 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
                 repCount += 1
                 if self.playSound {
                     if self.repCount == self.targetReps {
-                        AudioServicesPlaySystemSound(1025)
+                        self.playSuccessSound()
                     } else {
-                        AudioServicesPlaySystemSound(1322)
+                        self.playNormalSound()
                     }
                 }
                 DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
@@ -182,9 +186,9 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
                     repCount += 1
                     if self.playSound {
                         if self.repCount == self.targetReps {
-                            AudioServicesPlaySystemSound(1025)
+                            self.playSuccessSound()
                         } else {
-                            AudioServicesPlaySystemSound(1322)
+                            self.playNormalSound()
                         }
                     }
                     DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
@@ -196,6 +200,24 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     } catch {
       print("Pose processing failed")
     }
+  }
+
+  private func playSuccessSound() {
+      DispatchQueue.main.async {
+          // Play a distinct success chime (New Mail Ding - 1000)
+          AudioServicesPlaySystemSound(1000)
+          
+          // Add a nice haptic success feedback
+          let generator = UINotificationFeedbackGenerator()
+          generator.notificationOccurred(.success)
+      }
+  }
+
+  private func playNormalSound() {
+      DispatchQueue.main.async {
+          // Play standard short beep
+          AudioServicesPlaySystemSound(1322)
+      }
   }
 
   private func calculateAngle(p1: CGPoint, p2: CGPoint, p3: CGPoint) -> CGFloat {

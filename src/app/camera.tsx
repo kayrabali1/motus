@@ -11,6 +11,7 @@ import { useMotusStore } from '../store/useStore';
 import MotusScreenTime from '../../modules/motus-screen-time/src/MotusScreenTimeModule';
 
 const { width, height } = Dimensions.get('window');
+const MotusVision = requireNativeModule('MotusVision');
 
 export default function CameraValidationScreen() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function CameraValidationScreen() {
     }
   };
 
-  const [instruction, setInstruction] = useState(getInitialInstruction(selectedExercise));
+  const [instruction, setInstruction] = useState('Ensure your full body is in frame.');
   
   const scale = useSharedValue(1);
   const color = useSharedValue('#FFFFFF');
@@ -42,7 +43,9 @@ export default function CameraValidationScreen() {
           withTiming(1.6, { duration: 150 }),
           withSpring(1, { damping: 4, stiffness: 80 })
         );
-        color.value = withTiming('#39FF14', { duration: 400 }); // Turn Green on Success
+        color.value = withTiming('#39FF14', { duration: 400 }); // Turn Neon Green on Success
+        
+        // No JS-side sound logic needed! The native view plays the triple-beep automatically.
         
         setInstruction('Challenge Completed! Great job!');
       } else {
@@ -201,8 +204,8 @@ const styles = StyleSheet.create({
   counterText: {
     fontSize: 120,
     fontWeight: '900',
-    color: '#39FF14',
-    textShadowColor: 'rgba(57,255,20,0.3)',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(255,255,255,0.3)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
   },

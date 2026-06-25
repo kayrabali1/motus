@@ -11,6 +11,20 @@ export default function RootLayout() {
   const { lockExpirationTime, setLockExpiration } = useMotusStore();
   const appState = useRef(AppState.currentState);
 
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+
+  useEffect(() => {
+    if (lastNotificationResponse) {
+      if (lockExpirationTime) {
+        MotusScreenTime.blockApps();
+        setLockExpiration(null);
+        router.push('/(tabs)');
+      } else {
+        router.push('/camera');
+      }
+    }
+  }, [lastNotificationResponse]);
+
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       // Check if we are currently in an unlocked countdown
