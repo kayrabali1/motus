@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["MotusVisionModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.motusvision.MotusVisionModule"]
+  }
+}

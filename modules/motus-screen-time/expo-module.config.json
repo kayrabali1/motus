@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["MotusScreenTimeModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.motusscreentime.MotusScreenTimeModule"]
+  }
+}
