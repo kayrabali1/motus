@@ -5,7 +5,6 @@ import {
   TextInput, 
   TouchableOpacity, 
   StyleSheet, 
-  KeyboardAvoidingView, 
   Platform, 
   Dimensions, 
   Keyboard, 
@@ -14,11 +13,58 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { FontAwesome } from '@expo/vector-icons';
 import { useMotusStore } from '../store/useStore';
 
 const { width } = Dimensions.get('window');
+
+interface AuthInputProps {
+  icon: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  secureTextEntry?: boolean;
+  keyboardType?: any;
+  autoCapitalize?: any;
+  maxLength?: number;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+export function AuthInput({ icon, onFocus, onBlur, ...props }: AuthInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  
+  const iconSize = icon === 'lock' ? 22 : (icon === 'envelope-o' ? 18 : 20);
+  const showMarginLeft = icon === 'lock';
+
+  return (
+    <View style={[
+      styles.inputWrapper,
+      isFocused && styles.inputWrapperFocused
+    ]}>
+      <FontAwesome 
+        name={icon as any} 
+        size={iconSize} 
+        color={isFocused ? '#39FF14' : '#666'} 
+        style={[styles.inputIcon, showMarginLeft && { marginLeft: 2 }]} 
+      />
+      <TextInput
+        {...props}
+        onFocus={() => {
+          setIsFocused(true);
+          if (onFocus) onFocus();
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          if (onBlur) onBlur();
+        }}
+        selectionColor="#39FF14"
+        style={styles.input}
+        placeholderTextColor="#666"
+      />
+    </View>
+  );
+}
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -35,8 +81,7 @@ export default function AuthScreen() {
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  // Status and focused input tracking
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  // Status tracking
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null); // For developer testing visibility
@@ -139,23 +184,17 @@ export default function AuthScreen() {
   const activeError = localError || authError;
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
       <StatusBar style="light" />
       <ScrollView
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={true}
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
           
-          <Animated.View 
-            entering={FadeInDown.delay(100).springify()}
-            style={styles.header}
-          >
+          <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Text style={styles.logoText}>MOTUS</Text>
               <View style={styles.dot} />
@@ -165,7 +204,7 @@ export default function AuthScreen() {
               {resetMode && 'Create your new password.'}
               {!forgotMode && !resetMode && (isLogin ? 'Welcome back. Time to move.' : 'Join the elite. Start moving.')}
             </Text>
-          </Animated.View>
+          </View>
 
           {/* Feedback messages */}
           {activeError && (
@@ -192,119 +231,59 @@ export default function AuthScreen() {
           <View style={styles.formContainer}>
             {/* SIGN UP NAME INPUT */}
             {!isLogin && !forgotMode && !resetMode && (
-              <View key="signup-name-view">
-                <View style={[
-                  styles.inputWrapper, 
-                  focusedInput === 'name' && styles.inputWrapperFocused
-                ]}>
-                  <FontAwesome name="user-o" size={20} color={focusedInput === 'name' ? '#39FF14' : '#666'} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    placeholderTextColor="#666"
-                    value={name}
-                    onChangeText={setName}
-                    onFocus={() => setFocusedInput('name')}
-                    onBlur={() => setFocusedInput(null)}
-                    autoCapitalize="words"
-                    selectionColor="#39FF14"
-                  />
-                </View>
-              </View>
+              <AuthInput
+                icon="user-o"
+                placeholder="Full Name"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+              />
             )}
 
             {/* EMAIL INPUT (Login / Sign Up / Forgot Password) */}
             {!resetMode && (
-              <View key="auth-email-view">
-                <View style={[
-                  styles.inputWrapper, 
-                  focusedInput === 'email' && styles.inputWrapperFocused
-                ]}>
-                  <FontAwesome name="envelope-o" size={18} color={focusedInput === 'email' ? '#39FF14' : '#666'} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#666"
-                    value={email}
-                    onChangeText={setEmail}
-                    onFocus={() => setFocusedInput('email')}
-                    onBlur={() => setFocusedInput(null)}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    selectionColor="#39FF14"
-                  />
-                </View>
-              </View>
+              <AuthInput
+                icon="envelope-o"
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
             )}
 
             {/* PASSWORD INPUT (Login / Sign Up) */}
             {!forgotMode && !resetMode && (
-              <View key="auth-password-view">
-                <View style={[
-                  styles.inputWrapper, 
-                  focusedInput === 'password' && styles.inputWrapperFocused
-                ]}>
-                  <FontAwesome name="lock" size={22} color={focusedInput === 'password' ? '#39FF14' : '#666'} style={[styles.inputIcon, { marginLeft: 2 }]} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    placeholderTextColor="#666"
-                    value={password}
-                    onChangeText={setPassword}
-                    onFocus={() => setFocusedInput('password')}
-                    onBlur={() => setFocusedInput(null)}
-                    secureTextEntry
-                    selectionColor="#39FF14"
-                  />
-                </View>
-              </View>
+              <AuthInput
+                icon="lock"
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
             )}
 
             {/* RESET PASSWORD CODE INPUT */}
             {resetMode && (
-              <View key="reset-code-view">
-                <View style={[
-                  styles.inputWrapper, 
-                  focusedInput === 'code' && styles.inputWrapperFocused
-                ]}>
-                  <FontAwesome name="key" size={20} color={focusedInput === 'code' ? '#39FF14' : '#666'} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="6-Digit Reset Code"
-                    placeholderTextColor="#666"
-                    value={resetCode}
-                    onChangeText={setResetCode}
-                    onFocus={() => setFocusedInput('code')}
-                    onBlur={() => setFocusedInput(null)}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    selectionColor="#39FF14"
-                  />
-                </View>
-              </View>
+              <AuthInput
+                icon="key"
+                placeholder="6-Digit Reset Code"
+                value={resetCode}
+                onChangeText={setResetCode}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
             )}
 
             {/* NEW PASSWORD INPUT */}
             {resetMode && (
-              <View key="reset-newpassword-view">
-                <View style={[
-                  styles.inputWrapper, 
-                  focusedInput === 'newPassword' && styles.inputWrapperFocused
-                ]}>
-                  <FontAwesome name="lock" size={22} color={focusedInput === 'newPassword' ? '#39FF14' : '#666'} style={[styles.inputIcon, { marginLeft: 2 }]} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="New Password"
-                    placeholderTextColor="#666"
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    onFocus={() => setFocusedInput('newPassword')}
-                    onBlur={() => setFocusedInput(null)}
-                    secureTextEntry
-                    selectionColor="#39FF14"
-                  />
-                </View>
-              </View>
+              <AuthInput
+                icon="lock"
+                placeholder="New Password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
             )}
 
             {/* FORGOT PASSWORD BUTTON */}
@@ -372,7 +351,7 @@ export default function AuthScreen() {
           )}
 
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { TextInput, TouchableOpacity, Text, ActivityIndicator, Platform } from 'react-native';
-import AuthScreen from '../auth';
+import { TextInput, TouchableOpacity, Text, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import AuthScreen, { AuthInput } from '../auth';
 import { useMotusStore } from '../../store/useStore';
 
 // Mock the store
@@ -366,13 +366,19 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     const renderer = renderComponent();
     const root = renderer.root;
 
+    // Helper to find TextInput by placeholder
+    const findTextInput = (placeholder: string) => 
+      root.findAllByType(TextInput).find((i: any) => i.props.placeholder === placeholder);
+
     // 1. Email (Sign In)
-    const emailInput = root.findByProps({ placeholder: 'Email' });
+    const emailInput = findTextInput('Email');
+    expect(emailInput).toBeTruthy();
     act(() => { emailInput.props.onFocus(); });
     act(() => { emailInput.props.onBlur(); });
 
     // 2. Password (Sign In)
-    const passwordInput = root.findByProps({ placeholder: 'Password' });
+    const passwordInput = findTextInput('Password');
+    expect(passwordInput).toBeTruthy();
     act(() => { passwordInput.props.onFocus(); });
     act(() => { passwordInput.props.onBlur(); });
 
@@ -382,7 +388,8 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     });
 
     // 3. Full Name (Sign Up)
-    const nameInput = root.findByProps({ placeholder: 'Full Name' });
+    const nameInput = findTextInput('Full Name');
+    expect(nameInput).toBeTruthy();
     act(() => { nameInput.props.onFocus(); });
     act(() => { nameInput.props.onBlur(); });
 
@@ -395,19 +402,23 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
       findButtonWithText(root, 'Forgot password?').props.onPress();
     });
     act(() => {
-      root.findByProps({ placeholder: 'Email' }).props.onChangeText('kayra@fit.com');
+      const emailInputReset = findTextInput('Email');
+      expect(emailInputReset).toBeTruthy();
+      emailInputReset.props.onChangeText('kayra@fit.com');
     });
     await act(async () => {
       await getPrimaryButton(root).props.onPress();
     });
 
     // 4. Code (Reset Mode)
-    const codeInput = root.findByProps({ placeholder: '6-Digit Reset Code' });
+    const codeInput = findTextInput('6-Digit Reset Code');
+    expect(codeInput).toBeTruthy();
     act(() => { codeInput.props.onFocus(); });
     act(() => { codeInput.props.onBlur(); });
 
     // 5. New Password (Reset Mode)
-    const newPasswordInput = root.findByProps({ placeholder: 'New Password' });
+    const newPasswordInput = findTextInput('New Password');
+    expect(newPasswordInput).toBeTruthy();
     act(() => { newPasswordInput.props.onFocus(); });
     act(() => { newPasswordInput.props.onBlur(); });
   });
@@ -526,19 +537,40 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     expect(root.findByType(ActivityIndicator)).toBeTruthy();
   });
 
-  it('should render with correct behavior on Android platform', () => {
-    const originalOS = Platform.OS;
-    // @ts-ignore
-    Platform.OS = 'android';
-    
-    try {
-      const renderer = renderComponent();
-      // KeyboardAvoidingView has style styles.container
-      const keyboardAvoidingView = renderer.root.findByType(require('react-native').KeyboardAvoidingView);
-      expect(keyboardAvoidingView.props.behavior).toBe('height');
-    } finally {
-      // @ts-ignore
-      Platform.OS = originalOS;
-    }
+  it('should render ScrollView with automaticallyAdjustKeyboardInsets', () => {
+    const renderer = renderComponent();
+    const scroll = renderer.root.findByType(ScrollView);
+    expect(scroll.props.automaticallyAdjustKeyboardInsets).toBe(true);
+  });
+
+  describe('AuthInput component unit tests', () => {
+    it('should invoke onFocus and onBlur callbacks if provided', () => {
+      const mockFocus = jest.fn();
+      const mockBlur = jest.fn();
+      let testRenderer: any;
+      act(() => {
+        testRenderer = TestRenderer.create(
+          <AuthInput
+            icon="lock"
+            placeholder="Password"
+            value=""
+            onChangeText={() => {}}
+            onFocus={mockFocus}
+            onBlur={mockBlur}
+          />
+        );
+      });
+      const textInput = testRenderer.root.findByType(TextInput);
+      
+      act(() => {
+        textInput.props.onFocus();
+      });
+      expect(mockFocus).toHaveBeenCalled();
+
+      act(() => {
+        textInput.props.onBlur();
+      });
+      expect(mockBlur).toHaveBeenCalled();
+    });
   });
 });
