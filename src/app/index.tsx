@@ -1,17 +1,42 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import { useMotusStore } from '../store/useStore';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { token, loadState } = useMotusStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadState().then(() => {
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!loading && token) {
+      router.replace('/(tabs)');
+    }
+  }, [token, loading]);
 
   const handleGetStarted = () => {
     router.push('/auth');
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color="#39FF14" />
+      </View>
+    );
+  }
+
 
   return (
     <View style={styles.container}>

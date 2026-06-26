@@ -10,11 +10,16 @@ export default function RootLayout() {
   const router = useRouter();
   const { lockExpirationTime, setLockExpiration } = useMotusStore();
   const appState = useRef(AppState.currentState);
+  const hasHandledNotification = useRef<string | null>(null);
 
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
-    if (lastNotificationResponse) {
+    if (
+      lastNotificationResponse &&
+      lastNotificationResponse.notification.request.identifier !== hasHandledNotification.current
+    ) {
+      hasHandledNotification.current = lastNotificationResponse.notification.request.identifier;
       if (lockExpirationTime) {
         MotusScreenTime.blockApps();
         setLockExpiration(null);
@@ -23,7 +28,7 @@ export default function RootLayout() {
         router.push('/camera');
       }
     }
-  }, [lastNotificationResponse]);
+  }, [lastNotificationResponse, lockExpirationTime, router, setLockExpiration]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
@@ -60,7 +65,7 @@ export default function RootLayout() {
     });
 
     // Also set a failsafe timeout while the app is running
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (lockExpirationTime && Date.now() < lockExpirationTime) {
       timeoutId = setTimeout(() => {
         checkExpiration();
@@ -78,6 +83,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000000' } }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="intercept" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="camera" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />

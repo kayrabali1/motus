@@ -1,11 +1,28 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { SymbolView } from 'expo-symbols';
+import { useMotusStore } from '../../store/useStore';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
+  const { 
+    todayReps, 
+    todayCalories, 
+    todayUnlocks, 
+    activityLogs, 
+    fetchStatsAndActivity, 
+    token, 
+    user 
+  } = useMotusStore();
+
+  useEffect(() => {
+    if (token) {
+      fetchStatsAndActivity();
+    }
+  }, [token]);
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -13,7 +30,9 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.headerContainer}>
           <Text style={styles.header}>Your Impact</Text>
-          <Text style={styles.subtitle}>You&apos;re an absolute machine! 🔥</Text>
+          <Text style={styles.subtitle}>
+            {user ? `Welcome back, ${user.name}! 🔥` : 'You\'re an absolute machine! 🔥'}
+          </Text>
         </View>
 
         {/* Hero Card */}
@@ -27,81 +46,105 @@ export default function DashboardScreen() {
             
             <View style={styles.heroContent}>
               <View style={styles.heroTopRow}>
-                <SymbolView name="flame.fill" size={36} tintColor="#FFF" fallback={<View style={{width: 36, height: 36}}/>} />
-                <Text style={styles.streakText}>12 Day Streak</Text>
+                <View style={styles.pillBadge}>
+                  <SymbolView name="bolt.fill" size={14} tintColor="#FFD60A" fallback={<View style={{width: 14, height: 14}}/>} />
+                  <Text style={styles.pillText}>HIGH PERFORMANCE</Text>
+                </View>
+                <Text style={styles.heroDate}>TODAY</Text>
               </View>
-              <Text style={styles.heroValue}>340</Text>
-              <Text style={styles.heroLabel}>TOTAL REPS</Text>
+              <Text style={styles.heroValue}>{todayReps}</Text>
+              <Text style={styles.heroLabel}>TOTAL REPS COMPLETED</Text>
+              
+              <View style={styles.heroStatsRow}>
+                 <View>
+                   <Text style={styles.heroStatLabel}>APPS UNLOCKED</Text>
+                   <Text style={styles.heroStatValue}>{todayUnlocks}</Text>
+                 </View>
+                 <View>
+                   <Text style={styles.heroStatLabel}>CALORIES (EST)</Text>
+                   <Text style={styles.heroStatValue}>{todayCalories}</Text>
+                 </View>
+              </View>
             </View>
           </View>
         </View>
 
         {/* Wall of Fame (Leaderboard) */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Who&apos;s Making You Work?</Text>
-          <SymbolView name="trophy.fill" size={24} tintColor="#FFD60A" fallback={<View style={{width: 24, height: 24}}/>} />
+          <Text style={styles.sectionTitle}>Real Activity Logs</Text>
+          <SymbolView name="chart.pie.fill" size={24} tintColor="#FFD60A" fallback={<View style={{width: 24, height: 24}}/>} />
         </View>
 
         <View style={styles.leaderboardContainer}>
-          {/* App 1 */}
-          <BlurView intensity={20} style={styles.appCard} tint="light">
-            <View style={styles.appIconBg}>
-              <SymbolView name="camera.macro" size={28} tintColor="#FF2D55" fallback={<View style={{width: 28, height: 28}}/>} />
-            </View>
-            <View style={styles.appInfo}>
-              <Text style={styles.appName}>Instagram</Text>
-              <Text style={styles.appDetail}>150 Reps • 44%</Text>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: '44%', backgroundColor: '#FF2D55' }]} />
-              </View>
-            </View>
-          </BlurView>
+          {activityLogs.length === 0 ? (
+            <BlurView intensity={20} style={styles.emptyCard} tint="dark">
+              <SymbolView name="figure.run" size={32} tintColor="#8E8E93" style={{ marginBottom: 12 }} fallback={<View />} />
+              <Text style={styles.emptyText}>No workouts logged today.</Text>
+              <Text style={styles.emptySubtext}>Select apps in the Locker tab and unlock them with sweat.</Text>
+            </BlurView>
+          ) : (
+            activityLogs.map((log) => {
+              const formattedTime = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              
+              let exerciseName = 'Push-ups';
+              let tintColor = '#FF2D55';
+              let iconName = 'camera.macro';
+              
+              if (log.exercise === 'squats') {
+                exerciseName = 'Air Squats';
+                tintColor = '#39FF14';
+                iconName = 'play.rectangle.fill';
+              } else if (log.exercise === 'pullups') {
+                exerciseName = 'Pull-ups';
+                tintColor = '#007AFF';
+                iconName = 'bubble.left.and.bubble.right.fill';
+              }
 
-          {/* App 2 */}
-          <BlurView intensity={20} style={styles.appCard} tint="light">
-            <View style={styles.appIconBg}>
-              <SymbolView name="play.rectangle.fill" size={28} tintColor="#39FF14" fallback={<View style={{width: 28, height: 28}}/>} />
-            </View>
-            <View style={styles.appInfo}>
-              <Text style={styles.appName}>TikTok</Text>
-              <Text style={styles.appDetail}>120 Reps • 35%</Text>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: '35%', backgroundColor: '#39FF14' }]} />
-              </View>
-            </View>
-          </BlurView>
-
-          {/* App 3 */}
-          <BlurView intensity={20} style={styles.appCard} tint="light">
-            <View style={styles.appIconBg}>
-              <SymbolView name="bubble.left.and.bubble.right.fill" size={28} tintColor="#007AFF" fallback={<View style={{width: 28, height: 28}}/>} />
-            </View>
-            <View style={styles.appInfo}>
-              <Text style={styles.appName}>Messages</Text>
-              <Text style={styles.appDetail}>70 Reps • 21%</Text>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: '21%', backgroundColor: '#007AFF' }]} />
-              </View>
-            </View>
-          </BlurView>
+              return (
+                <BlurView key={log.id} intensity={20} style={styles.appCard} tint="light">
+                  <View style={[styles.appIconBg, { backgroundColor: `rgba(${tintColor === '#FF2D55' ? '255,45,85' : tintColor === '#39FF14' ? '57,255,20' : '0,122,255'},0.1)` }]}>
+                    <SymbolView name={iconName as any} size={28} tintColor={tintColor} fallback={<View style={{width: 28, height: 28}}/>} />
+                  </View>
+                  <View style={styles.appInfo}>
+                    <View style={styles.appTitleRow}>
+                      <Text style={styles.appName}>{exerciseName}</Text>
+                      <Text style={styles.timeText}>{formattedTime}</Text>
+                    </View>
+                    <View style={styles.tagsContainer}>
+                      <View style={[styles.activityTag, { backgroundColor: `${tintColor}20` }]}>
+                        <Text style={[styles.activityTagNumber, { color: tintColor }]}>{log.reps}</Text>
+                        <Text style={[styles.activityTagLabel, { color: tintColor }]}>REPS COMPLETED</Text>
+                      </View>
+                    </View>
+                  </View>
+                </BlurView>
+              );
+            })
+          )}
         </View>
 
         {/* Fun Facts */}
         <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Did You Know?</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.factsScroll}>
           <View style={[styles.factCard, { backgroundColor: 'rgba(255,45,85,0.1)' }]}>
-            <SymbolView name="bolt.heart.fill" size={32} tintColor="#FF2D55" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
-            <Text style={styles.factText}>Instagram owes you 150 squats!</Text>
+            <SymbolView name="flame.fill" size={32} tintColor="#FF2D55" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
+            <Text style={styles.factText}>
+              Your workout volume today has offset approximately {Math.max(1, Math.round(todayReps / 10))} hours of sedentary screen time.
+            </Text>
           </View>
 
           <View style={[styles.factCard, { backgroundColor: 'rgba(57,255,20,0.1)' }]}>
-            <SymbolView name="car.fill" size={32} tintColor="#39FF14" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
-            <Text style={styles.factText}>You&apos;ve lifted the equivalent of a small car.</Text>
+            <SymbolView name="chart.bar.fill" size={32} tintColor="#39FF14" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
+            <Text style={styles.factText}>
+              You have burned an estimated {todayCalories} active calories unlocking apps today. Keep it up!
+            </Text>
           </View>
           
           <View style={[styles.factCard, { backgroundColor: 'rgba(0,122,255,0.1)' }]}>
-            <SymbolView name="drop.fill" size={32} tintColor="#007AFF" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
-            <Text style={styles.factText}>TikTok made you sweat 40% more this week.</Text>
+            <SymbolView name="globe.americas.fill" size={32} tintColor="#007AFF" style={{marginBottom: 12}} fallback={<View style={{width: 32, height: 32}}/>} />
+            <Text style={styles.factText}>
+              You are currently in the top 5% of active Motus users by consistency this week.
+            </Text>
           </View>
         </ScrollView>
 
@@ -148,7 +191,7 @@ const styles = StyleSheet.create({
     padding: 24,
     minHeight: 180,
     justifyContent: 'space-between',
-    backgroundColor: '#1C1C1E', // Base dark color before BlurView
+    backgroundColor: '#1C1C1E',
     overflow: 'hidden',
   },
   heroContent: {
@@ -157,14 +200,28 @@ const styles = StyleSheet.create({
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  streakText: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  pillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 214, 10, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pillText: {
+    color: '#FFD60A',
+    fontSize: 12,
+    fontWeight: '800',
+    marginLeft: 6,
+    letterSpacing: 1,
+  },
+  heroDate: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
     fontWeight: '700',
-    marginLeft: 10,
-    textTransform: 'uppercase',
     letterSpacing: 1,
   },
   heroValue: {
@@ -182,11 +239,28 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     letterSpacing: 2,
   },
+  heroStatsRow: {
+    flexDirection: 'row',
+    marginTop: 24,
+    gap: 32,
+  },
+  heroStatLabel: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  heroStatValue: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 4,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 24,
@@ -220,42 +294,82 @@ const styles = StyleSheet.create({
   appInfo: {
     flex: 1,
   },
+  appTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
   appName: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
   },
-  appDetail: {
+  timeText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontWeight: '600',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  activityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activityTagNumber: {
     fontSize: 14,
-    color: '#A1A1AA',
-    marginBottom: 8,
-    fontWeight: '500',
+    fontWeight: '900',
+    marginRight: 4,
   },
-  progressBarBg: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 3,
+  activityTagLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  emptyCard: {
+    padding: 32,
+    borderRadius: 24,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
     overflow: 'hidden',
   },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
+  emptyText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 20,
+    paddingHorizontal: 16,
   },
   factsScroll: {
     paddingRight: 24,
     paddingBottom: 20,
   },
   factCard: {
-    width: width * 0.6,
-    padding: 20,
-    borderRadius: 24,
+    width: width * 0.65,
+    padding: 24,
+    borderRadius: 32,
     marginRight: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   factText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
     lineHeight: 24,

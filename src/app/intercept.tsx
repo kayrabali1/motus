@@ -4,9 +4,11 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import { useMotusStore } from '../store/useStore';
 
 export default function InterceptScreen() {
   const router = useRouter();
+  const { selectedExercise, repCount } = useMotusStore();
 
   const handleUnlock = () => {
     router.replace('/camera');
@@ -15,6 +17,8 @@ export default function InterceptScreen() {
   const handleCancel = () => {
     router.replace('/(tabs)');
   };
+
+  const exerciseLabel = selectedExercise === 'pushups' ? 'Push-ups' : selectedExercise === 'squats' ? 'Air Squats' : 'Pull-ups';
 
   return (
     <View style={styles.container}>
@@ -30,13 +34,13 @@ export default function InterceptScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(800)}>
           <Text style={styles.title}>Access Blocked</Text>
           <Text style={styles.subtitle}>
-            Instagram is currently locked. You must complete your physical challenge to regain access.
+            This application is currently locked. You must complete your physical challenge to regain access.
           </Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.challengeBox}>
           <Text style={styles.challengeLabel}>CHALLENGE</Text>
-          <Text style={styles.challengeValue}>10 Push-ups</Text>
+          <Text style={styles.challengeValue}>{repCount} {exerciseLabel}</Text>
         </Animated.View>
       </View>
 

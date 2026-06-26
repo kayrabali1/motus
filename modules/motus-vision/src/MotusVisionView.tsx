@@ -4,11 +4,14 @@ import { ViewProps } from 'react-native';
 
 export type OnRepDetectedEvent = {
   count: number;
+  isSuccess: boolean;
 };
 
 export type MotusVisionViewProps = {
   exerciseType: string;
   playSound?: boolean;
+  targetReps?: number;
+  strictMode?: boolean;
   onRepDetected?: (event: { nativeEvent: OnRepDetectedEvent }) => void;
 } & ViewProps;
 

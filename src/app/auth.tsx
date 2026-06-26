@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -6,32 +6,137 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   KeyboardAvoidingView, 
-  Platform,
-  Dimensions,
-  Keyboard,
-  TouchableWithoutFeedback
+  Platform, 
+  Dimensions, 
+  Keyboard, 
+  TouchableWithoutFeedback,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
 import { FontAwesome } from '@expo/vector-icons';
+import { useMotusStore } from '../store/useStore';
 
 const { width } = Dimensions.get('window');
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { signUp, signIn, requestResetCode, resetPassword, authLoading, authError, clearAuthError, token } = useMotusStore();
+
   const [isLogin, setIsLogin] = useState(true);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+
+  // Form inputs
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
+  // Status and focused input tracking
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null); // For developer testing visibility
 
-  const handleAuth = () => {
-    router.replace('/(tabs)');
+  useEffect(() => {
+    // If already logged in, redirect immediately
+    if (token) {
+      router.replace('/(tabs)');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    // Clear errors when switching modes
+    clearAuthError();
+    setLocalError(null);
+    setSuccessMessage(null);
+    setDevCode(null);
+  }, [isLogin, forgotMode, resetMode]);
+
+  const handleAuth = async () => {
+    Keyboard.dismiss();
+    setLocalError(null);
+    setSuccessMessage(null);
+
+    if (!email) {
+      setLocalError('Email is required.');
+      return;
+    }
+
+    if (isLogin) {
+      if (!password) {
+        setLocalError('Password is required.');
+        return;
+      }
+      const success = await signIn(email, password);
+      if (success) {
+        router.replace('/(tabs)');
+      }
+    } else {
+      if (!name) {
+        setLocalError('Name is required.');
+        return;
+      }
+      if (!password || password.length < 6) {
+        setLocalError('Password must be at least 6 characters.');
+        return;
+      }
+      const success = await signUp(name, email, password);
+      if (success) {
+        router.replace('/(tabs)');
+      }
+    }
   };
 
-  const handleSocialAuth = (provider: string) => {
-    router.replace('/(tabs)');
+  const handleForgotPassword = async () => {
+    Keyboard.dismiss();
+    setLocalError(null);
+    setSuccessMessage(null);
+
+    if (!email) {
+      setLocalError('Email is required to reset password.');
+      return;
+    }
+
+    const code = await requestResetCode(email);
+    if (code) {
+      setDevCode(code); // Store code so user can see it instantly
+      setSuccessMessage(`Reset code generated! Please enter it below to reset password.`);
+      setForgotMode(false);
+      setResetMode(true);
+    }
   };
+
+  const handleResetPassword = async () => {
+    Keyboard.dismiss();
+    setLocalError(null);
+    setSuccessMessage(null);
+
+    if (!resetCode) {
+      setLocalError('Verification code is required.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setLocalError('New password must be at least 6 characters.');
+      return;
+    }
+
+    const success = await resetPassword(email, resetCode, newPassword);
+    if (success) {
+      setSuccessMessage('Password updated successfully. Please sign in.');
+      setResetMode(false);
+      setIsLogin(true);
+      setPassword('');
+      setNewPassword('');
+      setResetCode('');
+      setDevCode(null);
+    }
+  };
+
+  const activeError = localError || authError;
 
   return (
     <KeyboardAvoidingView 
@@ -43,7 +148,7 @@ export default function AuthScreen() {
         <View style={styles.inner}>
           
           <Animated.View 
-            entering={FadeInDown.delay(200).springify()}
+            entering={FadeInDown.delay(100).springify()}
             style={styles.header}
           >
             <View style={styles.logoContainer}>
@@ -51,113 +156,215 @@ export default function AuthScreen() {
               <View style={styles.dot} />
             </View>
             <Text style={styles.subtitle}>
-              {isLogin ? 'Welcome back. Time to move.' : 'Join the elite. Start moving.'}
+              {forgotMode && 'Recover your credentials.'}
+              {resetMode && 'Create your new password.'}
+              {!forgotMode && !resetMode && (isLogin ? 'Welcome back. Time to move.' : 'Join the elite. Start moving.')}
             </Text>
           </Animated.View>
 
+          {/* Feedback messages */}
+          {activeError && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.errorAlert}>
+              <FontAwesome name="exclamation-circle" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
+              <Text style={styles.errorAlertText}>{activeError}</Text>
+            </Animated.View>
+          )}
+
+          {successMessage && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.successAlert}>
+              <FontAwesome name="check-circle" size={18} color="#39FF14" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.successAlertText}>{successMessage}</Text>
+                {devCode && (
+                  <Text style={styles.devCodeText}>
+                    Reset Code (Testing): <Text style={styles.devCodeHighlight}>{devCode}</Text>
+                  </Text>
+                )}
+              </View>
+            </Animated.View>
+          )}
+
           <View style={styles.formContainer}>
-            <Animated.View entering={FadeInDown.delay(300).springify()}>
-              <View style={[
-                styles.inputWrapper, 
-                focusedInput === 'email' && styles.inputWrapperFocused
-              ]}>
-                <FontAwesome name="envelope-o" size={20} color={focusedInput === 'email' ? '#39FF14' : '#666'} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email"
-                  placeholderTextColor="#666"
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedInput('email')}
-                  onBlur={() => setFocusedInput(null)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  selectionColor="#39FF14"
-                />
-              </View>
-            </Animated.View>
+            {/* SIGN UP NAME INPUT */}
+            {!isLogin && !forgotMode && !resetMode && (
+              <Animated.View key="signup-name-view" entering={FadeInDown.delay(200).springify()}>
+                <View style={[
+                  styles.inputWrapper, 
+                  focusedInput === 'name' && styles.inputWrapperFocused
+                ]}>
+                  <FontAwesome name="user-o" size={20} color={focusedInput === 'name' ? '#39FF14' : '#666'} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Name"
+                    placeholderTextColor="#666"
+                    value={name}
+                    onChangeText={setName}
+                    onFocus={() => setFocusedInput('name')}
+                    onBlur={() => setFocusedInput(null)}
+                    autoCapitalize="words"
+                    selectionColor="#39FF14"
+                  />
+                </View>
+              </Animated.View>
+            )}
 
-            <Animated.View entering={FadeInDown.delay(400).springify()}>
-              <View style={[
-                styles.inputWrapper, 
-                focusedInput === 'password' && styles.inputWrapperFocused
-              ]}>
-                <FontAwesome name="lock" size={24} color={focusedInput === 'password' ? '#39FF14' : '#666'} style={[styles.inputIcon, { marginLeft: 2 }]} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="#666"
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedInput('password')}
-                  onBlur={() => setFocusedInput(null)}
-                  secureTextEntry
-                  selectionColor="#39FF14"
-                />
-              </View>
-            </Animated.View>
+            {/* EMAIL INPUT (Login / Sign Up / Forgot Password) */}
+            {!resetMode && (
+              <Animated.View key="auth-email-view" entering={FadeInDown.delay(250).springify()}>
+                <View style={[
+                  styles.inputWrapper, 
+                  focusedInput === 'email' && styles.inputWrapperFocused
+                ]}>
+                  <FontAwesome name="envelope-o" size={18} color={focusedInput === 'email' ? '#39FF14' : '#666'} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor="#666"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setFocusedInput('email')}
+                    onBlur={() => setFocusedInput(null)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    selectionColor="#39FF14"
+                  />
+                </View>
+              </Animated.View>
+            )}
 
-            {isLogin && (
-              <Animated.View entering={FadeInDown.delay(450).springify()}>
-                <TouchableOpacity style={styles.forgotPassword}>
+            {/* PASSWORD INPUT (Login / Sign Up) */}
+            {!forgotMode && !resetMode && (
+              <Animated.View key="auth-password-view" entering={FadeInDown.delay(300).springify()}>
+                <View style={[
+                  styles.inputWrapper, 
+                  focusedInput === 'password' && styles.inputWrapperFocused
+                ]}>
+                  <FontAwesome name="lock" size={22} color={focusedInput === 'password' ? '#39FF14' : '#666'} style={[styles.inputIcon, { marginLeft: 2 }]} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    placeholderTextColor="#666"
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setFocusedInput('password')}
+                    onBlur={() => setFocusedInput(null)}
+                    secureTextEntry
+                    selectionColor="#39FF14"
+                  />
+                </View>
+              </Animated.View>
+            )}
+
+            {/* RESET PASSWORD CODE INPUT */}
+            {resetMode && (
+              <Animated.View key="reset-code-view" entering={FadeInDown.delay(200).springify()}>
+                <View style={[
+                  styles.inputWrapper, 
+                  focusedInput === 'code' && styles.inputWrapperFocused
+                ]}>
+                  <FontAwesome name="key" size={20} color={focusedInput === 'code' ? '#39FF14' : '#666'} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="6-Digit Reset Code"
+                    placeholderTextColor="#666"
+                    value={resetCode}
+                    onChangeText={setResetCode}
+                    onFocus={() => setFocusedInput('code')}
+                    onBlur={() => setFocusedInput(null)}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    selectionColor="#39FF14"
+                  />
+                </View>
+              </Animated.View>
+            )}
+
+            {/* NEW PASSWORD INPUT */}
+            {resetMode && (
+              <Animated.View key="reset-newpassword-view" entering={FadeInDown.delay(250).springify()}>
+                <View style={[
+                  styles.inputWrapper, 
+                  focusedInput === 'newPassword' && styles.inputWrapperFocused
+                ]}>
+                  <FontAwesome name="lock" size={22} color={focusedInput === 'newPassword' ? '#39FF14' : '#666'} style={[styles.inputIcon, { marginLeft: 2 }]} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="New Password"
+                    placeholderTextColor="#666"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    onFocus={() => setFocusedInput('newPassword')}
+                    onBlur={() => setFocusedInput(null)}
+                    secureTextEntry
+                    selectionColor="#39FF14"
+                  />
+                </View>
+              </Animated.View>
+            )}
+
+            {/* FORGOT PASSWORD BUTTON */}
+            {isLogin && !forgotMode && !resetMode && (
+              <Animated.View entering={FadeInDown.delay(350).springify()}>
+                <TouchableOpacity 
+                  style={styles.forgotPassword} 
+                  onPress={() => setForgotMode(true)}
+                >
                   <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                 </TouchableOpacity>
               </Animated.View>
             )}
 
-            <Animated.View entering={FadeInUp.delay(500).springify()}>
+            {/* SUBMIT BUTTONS */}
+            <Animated.View entering={FadeInUp.delay(400).springify()}>
               <TouchableOpacity 
                 style={styles.primaryButton}
                 activeOpacity={0.8}
-                onPress={handleAuth}
+                onPress={
+                  forgotMode ? handleForgotPassword :
+                  resetMode ? handleResetPassword :
+                  handleAuth
+                }
+                disabled={authLoading}
               >
-                <Text style={styles.primaryButtonText}>
-                  {isLogin ? 'Sign In' : 'Create Account'}
+                {authLoading ? (
+                  <ActivityIndicator size="small" color="#000000" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {forgotMode ? 'Send Reset Code' :
+                     resetMode ? 'Update Password' :
+                     (isLogin ? 'Sign In' : 'Create Account')}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {/* BACK TO LOGIN FOR FORGOT/RESET MODES */}
+          {(forgotMode || resetMode) && (
+            <Animated.View entering={FadeIn.delay(500).duration(800)} style={styles.backToLogin}>
+              <TouchableOpacity onPress={() => {
+                setForgotMode(false);
+                setResetMode(false);
+                setIsLogin(true);
+              }}>
+                <Text style={styles.footerAction}>Back to Sign In</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* TOGGLE LOGIN / SIGN UP */}
+          {!forgotMode && !resetMode && (
+            <Animated.View entering={FadeIn.delay(500).duration(800)} style={styles.footer}>
+              <Text style={styles.footerText}>
+                {isLogin ? "Don't have an account? " : "Already have an account? "}
+              </Text>
+              <TouchableOpacity onPress={() => setIsLogin(!isLogin)} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                <Text style={styles.footerAction}>
+                  {isLogin ? 'Sign Up' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
-          </View>
-
-          <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.divider} />
-          </Animated.View>
-
-          <View style={styles.socialContainer}>
-            <Animated.View entering={FadeInUp.delay(700).springify()} style={{ flex: 0.47 }}>
-              <TouchableOpacity 
-                style={styles.socialButton}
-                activeOpacity={0.8}
-                onPress={() => handleSocialAuth('apple')}
-              >
-                <FontAwesome name="apple" size={24} color="#FFF" style={styles.socialIcon} />
-                <Text style={styles.socialButtonText}>Apple</Text>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View entering={FadeInUp.delay(800).springify()} style={{ flex: 0.47 }}>
-              <TouchableOpacity 
-                style={styles.socialButton}
-                activeOpacity={0.8}
-                onPress={() => handleSocialAuth('google')}
-              >
-                <FontAwesome name="google" size={24} color="#FFF" style={styles.socialIcon} />
-                <Text style={styles.socialButtonText}>Google</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-
-          <Animated.View entering={FadeIn.delay(900).duration(800)} style={styles.footer}>
-            <Text style={styles.footerText}>
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-            </Text>
-            <TouchableOpacity onPress={() => setIsLogin(!isLogin)} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-              <Text style={styles.footerAction}>
-                {isLogin ? 'Sign Up' : 'Sign In'}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+          )}
 
         </View>
       </TouchableWithoutFeedback>
@@ -176,8 +383,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    marginBottom: 48,
-    marginTop: 60,
+    marginBottom: 36,
+    marginTop: 40,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -209,8 +416,50 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.5,
   },
+  errorAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.3)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  errorAlertText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  successAlert: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(57, 255, 20, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.3)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  successAlertText: {
+    color: '#39FF14',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  devCodeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  devCodeHighlight: {
+    color: '#39FF14',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
   formContainer: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -272,49 +521,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#2C2C2E',
-  },
-  dividerText: {
-    color: '#666',
-    paddingHorizontal: 16,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 40,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1C1C1E',
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
-  },
-  socialIcon: {
-    marginRight: 10,
-  },
-  socialButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 16,
+  },
+  backToLogin: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
   },
   footerText: {
     color: '#8E8E93',

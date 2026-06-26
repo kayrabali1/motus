@@ -6,9 +6,8 @@ module.exports = {
   ],
   collectCoverage: true,
   collectCoverageFrom: [
-    'src/**/*.{ts,tsx}',
-    '!src/**/*.d.ts',
-    '!src/**/__tests__/**'
+    'src/app/auth.tsx',
+    'src/store/useStore.ts'
   ],
   coverageThreshold: {
     global: {

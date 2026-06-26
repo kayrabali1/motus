@@ -7,11 +7,7 @@ public class MotusVisionModule: Module {
     Name("MotusVision")
 
     Function("playSuccessSound") {
-      DispatchQueue.main.async {
-          AudioServicesPlaySystemSound(1000)
-          let generator = UINotificationFeedbackGenerator()
-          generator.notificationOccurred(.success)
-      }
+      MotusVisionView.playSuccessChime()
     }
 
     View(MotusVisionView.self) {
@@ -19,6 +15,7 @@ public class MotusVisionModule: Module {
       
       Prop("exerciseType") { (view: MotusVisionView, type: String) in
         view.exerciseType = type
+        view.resetTrackingState()
       }
 
       Prop("playSound") { (view: MotusVisionView, play: Bool) in
@@ -27,6 +24,12 @@ public class MotusVisionModule: Module {
 
       Prop("targetReps") { (view: MotusVisionView, count: Int) in
         view.targetReps = count
+        view.resetTrackingState()
+      }
+
+      Prop("strictMode") { (view: MotusVisionView, strict: Bool) in
+        view.strictMode = strict
+        view.resetTrackingState()
       }
     }
   }
@@ -37,6 +40,7 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   var exerciseType: String = "pushups"
   var playSound: Bool = true
   var targetReps: Int = 0
+  var strictMode: Bool = false
   
   private let captureSession = AVCaptureSession()
   private let videoOutput = AVCaptureVideoDataOutput()
@@ -45,10 +49,119 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   
   private var isDown = false
   private var repCount = 0
+  
+  // EMA Filter states for joint angles / ratios
+  private var smoothedJointAngle1: CGFloat = 180.0
+  private var smoothedJointAngle2: CGFloat = 0.0
+  private var hasInitializedAngles = false
+  
+  // Cooldown timer
+  private var lastRepTime: Double = 0
+  
+  func resetTrackingState() {
+    isDown = false
+    repCount = 0
+    smoothedJointAngle1 = 180.0
+    smoothedJointAngle2 = 0.0
+    hasInitializedAngles = false
+    lastRepTime = 0
+  }
+  
+  private func smooth(_ current: CGFloat, smoothed: inout CGFloat) {
+    if !hasInitializedAngles {
+      smoothed = current
+    } else {
+      smoothed = 0.3 * current + 0.7 * smoothed
+    }
+  }
+  
+  private func distance(p1: CGPoint, p2: CGPoint) -> CGFloat {
+      return sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2))
+  }
+  
+  // Audio players for reliable sound playback
+  private static var normalPlayer: AVAudioPlayer?
+  private static var successPlayer1: AVAudioPlayer?
+  private static var successPlayer2: AVAudioPlayer?
+  private static var successPlayer3: AVAudioPlayer?
+  private static var audioSessionConfigured = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
+    MotusVisionView.configureAudioSession()
     setupCamera()
+  }
+
+  private static func configureAudioSession() {
+    guard !audioSessionConfigured else { return }
+    audioSessionConfigured = true
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try session.setActive(true)
+    } catch {
+      print("Audio session config failed: \(error)")
+    }
+    
+    // Pre-load system sound files for instant playback
+    // Normal beep: Tock sound (short, crisp)
+    if let url = URL(string: "/System/Library/Audio/UISounds/Tock.caf") {
+      normalPlayer = try? AVAudioPlayer(contentsOf: url)
+      normalPlayer?.prepareToPlay()
+    }
+    
+    // Success chime: Use three rising tones
+    // Tone 1 (low)
+    if let url = URL(string: "/System/Library/Audio/UISounds/short_low_high.caf") {
+      successPlayer1 = try? AVAudioPlayer(contentsOf: url)
+      successPlayer1?.prepareToPlay()
+    }
+    // Fallback: try another reliable system sound
+    if successPlayer1 == nil, let url = URL(string: "/System/Library/Audio/UISounds/New/Fanfare.caf") {
+      successPlayer1 = try? AVAudioPlayer(contentsOf: url)
+      successPlayer1?.prepareToPlay()
+    }
+  }
+
+  /// Play a normal rep beep - short and crisp
+  private func playNormalBeep() {
+    guard playSound else { return }
+    DispatchQueue.main.async {
+      if let player = MotusVisionView.normalPlayer {
+        player.currentTime = 0
+        player.play()
+      } else {
+        // Guaranteed fallback
+        AudioServicesPlaySystemSound(1104)
+      }
+    }
+  }
+
+  /// Play a success chime - distinctly different from the normal beep
+  static func playSuccessChime() {
+    DispatchQueue.main.async {
+      // Try the pre-loaded success sound first
+      if let player = successPlayer1 {
+        player.currentTime = 0
+        player.play()
+      } else {
+        // Fallback: Play a rapid ascending triple-beep using guaranteed system sounds
+        // 1057 = "key pressed" - very short, always works
+        AudioServicesPlaySystemSound(1057)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+          AudioServicesPlaySystemSound(1057)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+          // 1025 = slightly different tone for the final note
+          AudioServicesPlaySystemSound(1025)
+        }
+      }
+      
+      // Always add haptic feedback
+      let generator = UINotificationFeedbackGenerator()
+      generator.prepare()
+      generator.notificationOccurred(.success)
+    }
   }
 
   private func setupCamera() {
@@ -66,7 +179,7 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     previewLayer.videoGravity = .resizeAspectFill
     layer.addSublayer(previewLayer)
     
-    overlayLayer.fillColor = UIColor(red: 0.22, green: 1.0, blue: 0.08, alpha: 0.8).cgColor // #39FF14 equivalent
+    overlayLayer.fillColor = UIColor(red: 0.22, green: 1.0, blue: 0.08, alpha: 0.8).cgColor
     overlayLayer.strokeColor = UIColor(red: 0.22, green: 1.0, blue: 0.08, alpha: 1.0).cgColor
     overlayLayer.lineWidth = 4
     overlayLayer.lineCap = .round
@@ -93,6 +206,25 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     try? VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:]).perform([request])
   }
   
+  private func onRepCompleted() {
+    let currentTime = ProcessInfo.processInfo.systemUptime
+    guard currentTime - lastRepTime >= 1.0 else { return }
+    lastRepTime = currentTime
+    
+    repCount += 1
+    let isSuccess = repCount == targetReps
+    
+    if isSuccess {
+      MotusVisionView.playSuccessChime()
+    } else {
+      playNormalBeep()
+    }
+    
+    DispatchQueue.main.async {
+      self.onRepDetected(["count": self.repCount, "isSuccess": isSuccess])
+    }
+  }
+
   private func processPoseObservation(req: VNRequest) {
     guard let observation = req.results?.first as? VNHumanBodyPoseObservation else {
         DispatchQueue.main.async { self.overlayLayer.path = nil }
@@ -116,108 +248,106 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
                 let ankle = recognizedPoints[isLeft ? .leftAnkle : .rightAnkle] else { return }
                 
           if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 && hip.confidence > 0.5 && ankle.confidence > 0.5 {
-            let bodyAngle = calculateAngle(p1: shoulder.location, p2: hip.location, p3: ankle.location)
-            let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
-            
-            // Check for straight back/plank position (body angle roughly straight)
-            if bodyAngle > 130 {
-                if armAngle < 90 && !isDown {
-                    isDown = true
-                } else if armAngle > 150 && isDown {
-                    isDown = false
-                    repCount += 1
-                    if self.playSound {
-                        if self.repCount == self.targetReps {
-                            self.playSuccessSound()
-                        } else {
-                            self.playNormalSound()
-                        }
-                    }
-                    DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
-                }
-            }
+              let bodyAngle = calculateAngle(p1: shoulder.location, p2: hip.location, p3: ankle.location)
+              let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
+              
+              smooth(armAngle, smoothed: &smoothedJointAngle1)
+              smooth(bodyAngle, smoothed: &smoothedJointAngle2)
+              hasInitializedAngles = true
+              
+              // Verify form: Body angle must be relatively straight (plank)
+              let requiredBodyAngle: CGFloat = strictMode ? 155 : 130
+              let requiredDownArmAngle: CGFloat = strictMode ? 75 : 90
+              let requiredUpArmAngle: CGFloat = strictMode ? 165 : 150
+
+              if smoothedJointAngle2 > requiredBodyAngle {
+                  if smoothedJointAngle1 < requiredDownArmAngle && !isDown {
+                      isDown = true
+                  } else if smoothedJointAngle1 > requiredUpArmAngle && isDown {
+                      isDown = false
+                      onRepCompleted()
+                  }
+              }
           }
       } else if exerciseType == "squats" {
-          guard let leftHip = recognizedPoints[.leftHip],
-                let leftKnee = recognizedPoints[.leftKnee],
-                let leftAnkle = recognizedPoints[.leftAnkle] else { return }
+          let leftConfidence = (recognizedPoints[.leftHip]?.confidence ?? 0) + (recognizedPoints[.leftKnee]?.confidence ?? 0) + (recognizedPoints[.leftAnkle]?.confidence ?? 0)
+          let rightConfidence = (recognizedPoints[.rightHip]?.confidence ?? 0) + (recognizedPoints[.rightKnee]?.confidence ?? 0) + (recognizedPoints[.rightAnkle]?.confidence ?? 0)
+          
+          let isLeft = leftConfidence > rightConfidence
+          
+          guard let hip = recognizedPoints[isLeft ? .leftHip : .rightHip],
+                let knee = recognizedPoints[isLeft ? .leftKnee : .rightKnee],
+                let ankle = recognizedPoints[isLeft ? .leftAnkle : .rightAnkle] else { return }
                 
-          if leftHip.confidence > 0.5 && leftKnee.confidence > 0.5 && leftAnkle.confidence > 0.5 {
-            let angle = calculateAngle(p1: leftHip.location, p2: leftKnee.location, p3: leftAnkle.location)
-            if angle < 100 && !isDown {
-                isDown = true
-            } else if angle > 150 && isDown {
-                isDown = false
-                repCount += 1
-                if self.playSound {
-                    if self.repCount == self.targetReps {
-                        self.playSuccessSound()
-                    } else {
-                        self.playNormalSound()
-                    }
-                }
-                DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
-            }
+          if hip.confidence > 0.5 && knee.confidence > 0.5 && ankle.confidence > 0.5 {
+              let kneeAngle = calculateAngle(p1: hip.location, p2: knee.location, p3: ankle.location)
+              
+              // Scale-invariant parallel depth ratio
+              let thighLength = distance(p1: hip.location, p2: knee.location)
+              let parallelRatio = thighLength > 0 ? (hip.location.y - knee.location.y) / thighLength : 1.0
+              
+              smooth(kneeAngle, smoothed: &smoothedJointAngle1)
+              smooth(parallelRatio, smoothed: &smoothedJointAngle2)
+              hasInitializedAngles = true
+              
+              // Down & Up checks with optional strict form requirements
+              let requiredDownKneeAngle: CGFloat = strictMode ? 85 : 100
+              let requiredDownRatio: CGFloat = strictMode ? 0.0 : 0.2
+              let requiredUpKneeAngle: CGFloat = strictMode ? 170 : 150
+              let requiredUpRatio: CGFloat = strictMode ? 0.8 : 0.6
+
+              if smoothedJointAngle1 < requiredDownKneeAngle && smoothedJointAngle2 < requiredDownRatio && !isDown {
+                  isDown = true
+              } 
+              else if smoothedJointAngle1 > requiredUpKneeAngle && smoothedJointAngle2 > requiredUpRatio && isDown {
+                  isDown = false
+                  onRepCompleted()
+              }
           }
       } else if exerciseType == "pullups" {
-          guard let leftShoulder = recognizedPoints[.leftShoulder],
-                let leftElbow = recognizedPoints[.leftElbow],
-                let leftWrist = recognizedPoints[.leftWrist],
-                let leftHip = recognizedPoints[.leftHip] else { return }
+          let leftConfidence = (recognizedPoints[.leftShoulder]?.confidence ?? 0) + (recognizedPoints[.leftElbow]?.confidence ?? 0) + (recognizedPoints[.leftWrist]?.confidence ?? 0)
+          let rightConfidence = (recognizedPoints[.rightShoulder]?.confidence ?? 0) + (recognizedPoints[.rightElbow]?.confidence ?? 0) + (recognizedPoints[.rightWrist]?.confidence ?? 0)
+          
+          let isLeft = leftConfidence > rightConfidence
+          
+          guard let shoulder = recognizedPoints[isLeft ? .leftShoulder : .rightShoulder],
+                let elbow = recognizedPoints[isLeft ? .leftElbow : .rightElbow],
+                let wrist = recognizedPoints[isLeft ? .leftWrist : .rightWrist] else { return }
                 
-          if leftShoulder.confidence > 0.5 && leftElbow.confidence > 0.5 && leftWrist.confidence > 0.5 && leftHip.confidence > 0.5 {
-            
-            // In Vision, Y=0 is bottom, Y=1 is top. Wrist must be above shoulder.
-            if leftWrist.location.y > leftShoulder.location.y {
-                let angle = calculateAngle(p1: leftShoulder.location, p2: leftElbow.location, p3: leftWrist.location)
-                
-                // Compare arm extension to torso length to prevent simple arm-flapping cheats
-                let torsoLength = leftShoulder.location.y - leftHip.location.y
-                let armExtension = leftWrist.location.y - leftShoulder.location.y
-                let ratio = torsoLength > 0 ? armExtension / torsoLength : 1.0
-                
-                // Pulled up: arms are bent tightly (angle < 75) AND hands are close to shoulders (ratio < 0.4)
-                if angle < 75 && ratio < 0.4 && !isDown {
-                    isDown = true // Pulled up
-                } 
-                // Hanging: arms are straight (angle > 140) AND hands are far above shoulders (ratio > 0.7)
-                else if angle > 140 && ratio > 0.7 && isDown {
-                    isDown = false // Hanging down
-                    repCount += 1
-                    if self.playSound {
-                        if self.repCount == self.targetReps {
-                            self.playSuccessSound()
-                        } else {
-                            self.playNormalSound()
-                        }
-                    }
-                    DispatchQueue.main.async { self.onRepDetected(["count": self.repCount]) }
-                }
-            }
+          if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 {
+              // Ensure wrist is above shoulder
+              if wrist.location.y > shoulder.location.y {
+                  let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
+                  
+                  // Scale-invariant forearm ratio (hip-less tracking)
+                  let forearmLength = distance(p1: elbow.location, p2: wrist.location)
+                  let shoulderWristDistance = distance(p1: shoulder.location, p2: wrist.location)
+                  let pullupRatio = forearmLength > 0 ? shoulderWristDistance / forearmLength : 1.0
+                  
+                  smooth(armAngle, smoothed: &smoothedJointAngle1)
+                  smooth(pullupRatio, smoothed: &smoothedJointAngle2)
+                  hasInitializedAngles = true
+                  
+                  // Pulled up & hanging checks with optional strict form requirements
+                  let requiredUpArmAngle: CGFloat = strictMode ? 65 : 80
+                  let requiredUpRatio: CGFloat = strictMode ? 0.7 : 0.9
+                  let requiredDownArmAngle: CGFloat = strictMode ? 165 : 140
+                  let requiredDownRatio: CGFloat = strictMode ? 1.6 : 1.4
+
+                  if smoothedJointAngle1 < requiredUpArmAngle && smoothedJointAngle2 < requiredUpRatio && !isDown {
+                      isDown = true
+                  } 
+                  else if smoothedJointAngle1 > requiredDownArmAngle && smoothedJointAngle2 > requiredDownRatio && isDown {
+                      isDown = false
+                      onRepCompleted()
+                  }
+              }
           }
       }
       
     } catch {
       print("Pose processing failed")
     }
-  }
-
-  private func playSuccessSound() {
-      DispatchQueue.main.async {
-          // Play a distinct success chime (New Mail Ding - 1000)
-          AudioServicesPlaySystemSound(1000)
-          
-          // Add a nice haptic success feedback
-          let generator = UINotificationFeedbackGenerator()
-          generator.notificationOccurred(.success)
-      }
-  }
-
-  private func playNormalSound() {
-      DispatchQueue.main.async {
-          // Play standard short beep
-          AudioServicesPlaySystemSound(1322)
-      }
   }
 
   private func calculateAngle(p1: CGPoint, p2: CGPoint, p3: CGPoint) -> CGFloat {
