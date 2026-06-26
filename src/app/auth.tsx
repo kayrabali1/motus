@@ -38,10 +38,13 @@ export function AuthInput({ icon, onFocus, onBlur, ...props }: AuthInputProps) {
   const showMarginLeft = icon === 'lock';
 
   return (
-    <View style={[
-      styles.inputWrapper,
-      isFocused && styles.inputWrapperFocused
-    ]}>
+    <View 
+      collapsable={false}
+      style={[
+        styles.inputWrapper,
+        isFocused && styles.inputWrapperFocused
+      ]}
+    >
       <FontAwesome 
         name={icon as any} 
         size={iconSize} 
@@ -50,6 +53,7 @@ export function AuthInput({ icon, onFocus, onBlur, ...props }: AuthInputProps) {
       />
       <TextInput
         {...props}
+        collapsable={false}
         onFocus={() => {
           setIsFocused(true);
           if (onFocus) onFocus();
@@ -363,7 +367,8 @@ const styles = StyleSheet.create({
   inner: {
     flexGrow: 1,
     paddingHorizontal: 32,
-    justifyContent: 'center',
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   header: {
     marginBottom: 36,
