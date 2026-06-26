@@ -8,7 +8,7 @@ import MotusScreenTime from '../../modules/motus-screen-time/src/MotusScreenTime
 
 export default function RootLayout() {
   const router = useRouter();
-  const { lockExpirationTime, setLockExpiration } = useMotusStore();
+  const { lockExpirationTime, setLockExpiration, token } = useMotusStore();
   const appState = useRef(AppState.currentState);
   const hasHandledNotification = useRef<string | null>(null);
 
@@ -16,6 +16,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (
+      token &&
       lastNotificationResponse &&
       lastNotificationResponse.notification.request.identifier !== hasHandledNotification.current
     ) {
@@ -28,10 +29,12 @@ export default function RootLayout() {
         router.push('/camera');
       }
     }
-  }, [lastNotificationResponse, lockExpirationTime, router, setLockExpiration]);
+  }, [lastNotificationResponse, lockExpirationTime, router, setLockExpiration, token]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      // Only handle notifications when user is authenticated
+      if (!token) return;
       // Check if we are currently in an unlocked countdown
       if (lockExpirationTime) {
         MotusScreenTime.blockApps();
@@ -43,7 +46,7 @@ export default function RootLayout() {
       }
     });
     return () => subscription.remove();
-  }, [router, lockExpirationTime, setLockExpiration]);
+  }, [router, lockExpirationTime, setLockExpiration, token]);
 
   useEffect(() => {
     const checkExpiration = () => {

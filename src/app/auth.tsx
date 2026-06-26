@@ -9,7 +9,7 @@ import {
   Platform, 
   Dimensions, 
   Keyboard, 
-  TouchableWithoutFeedback,
+  ScrollView,
   ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -144,8 +144,13 @@ export default function AuthScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar style="light" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.inner}>
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
           
           <Animated.View 
             entering={FadeInDown.delay(100).springify()}
@@ -366,8 +371,7 @@ export default function AuthScreen() {
             </Animated.View>
           )}
 
-        </View>
-      </TouchableWithoutFeedback>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -378,7 +382,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   inner: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 32,
     justifyContent: 'center',
   },
