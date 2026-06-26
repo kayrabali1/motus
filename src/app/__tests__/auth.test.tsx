@@ -186,7 +186,7 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     expect(findTextWithContent(root, 'Name is required.')).toBeTruthy();
   });
 
-  it('should validate password length on signup', () => {
+  it('should validate password strength on signup', () => {
     const renderer = renderComponent();
     const root = renderer.root;
     
@@ -197,14 +197,14 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     act(() => {
       root.findByProps({ placeholder: 'Full Name' }).props.onChangeText('Kayra Bali');
       root.findByProps({ placeholder: 'Email' }).props.onChangeText('kayra@fit.com');
-      root.findByProps({ placeholder: 'Password' }).props.onChangeText('123'); // short
+      root.findByProps({ placeholder: 'Password' }).props.onChangeText('123'); // weak password
     });
 
     act(() => {
       getPrimaryButton(root).props.onPress();
     });
 
-    expect(findTextWithContent(root, 'Password must be at least 6 characters.')).toBeTruthy();
+    expect(findTextWithContent(root, 'Password must be at least 8 characters and contain uppercase, lowercase, and numeric characters.')).toBeTruthy();
     expect(mockStore.signUp).not.toHaveBeenCalled();
   });
 
@@ -220,14 +220,14 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     act(() => {
       root.findByProps({ placeholder: 'Full Name' }).props.onChangeText('Kayra Bali');
       root.findByProps({ placeholder: 'Email' }).props.onChangeText('kayra@fit.com');
-      root.findByProps({ placeholder: 'Password' }).props.onChangeText('secret123');
+      root.findByProps({ placeholder: 'Password' }).props.onChangeText('Secret123');
     });
 
     await act(async () => {
       await getPrimaryButton(root).props.onPress();
     });
 
-    expect(mockStore.signUp).toHaveBeenCalledWith('Kayra Bali', 'kayra@fit.com', 'secret123');
+    expect(mockStore.signUp).toHaveBeenCalledWith('Kayra Bali', 'kayra@fit.com', 'Secret123');
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
   });
 
@@ -437,14 +437,14 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     act(() => {
       root.findByProps({ placeholder: 'Full Name' }).props.onChangeText('Kayra');
       root.findByProps({ placeholder: 'Email' }).props.onChangeText('kayra@fit.com');
-      root.findByProps({ placeholder: 'Password' }).props.onChangeText('secret123');
+      root.findByProps({ placeholder: 'Password' }).props.onChangeText('Secret123');
     });
 
     await act(async () => {
       await getPrimaryButton(root).props.onPress();
     });
 
-    expect(mockStore.signUp).toHaveBeenCalledWith('Kayra', 'kayra@fit.com', 'secret123');
+    expect(mockStore.signUp).toHaveBeenCalledWith('Kayra', 'kayra@fit.com', 'Secret123');
     expect(findTextWithContent(root, 'Email already in use.')).toBeTruthy();
   });
 

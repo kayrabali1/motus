@@ -129,8 +129,9 @@ export default function AuthScreen() {
         setLocalError('Name is required.');
         return;
       }
-      if (!password || password.length < 6) {
-        setLocalError('Password must be at least 6 characters.');
+      const isStrong = password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password);
+      if (!isStrong) {
+        setLocalError('Password must be at least 8 characters and contain uppercase, lowercase, and numeric characters.');
         return;
       }
       const success = await signUp(name, email, password);
@@ -265,6 +266,57 @@ export default function AuthScreen() {
                 onChangeText={setPassword}
                 secureTextEntry
               />
+            )}
+
+            {/* PASSWORD REQUIREMENTS FOR SIGN UP */}
+            {!isLogin && !forgotMode && !resetMode && (
+              <View style={styles.requirementsContainer}>
+                <Text style={styles.requirementsTitle}>Password Requirements:</Text>
+                <View style={styles.requirementRow}>
+                  <FontAwesome 
+                    name={password.length >= 8 ? "check-circle" : "circle-o"} 
+                    size={14} 
+                    color={password.length >= 8 ? "#39FF14" : "#8E8E93"} 
+                    style={styles.requirementIcon}
+                  />
+                  <Text style={[styles.requirementText, password.length >= 8 && styles.requirementTextValid]}>
+                    At least 8 characters
+                  </Text>
+                </View>
+                <View style={styles.requirementRow}>
+                  <FontAwesome 
+                    name={/[A-Z]/.test(password) ? "check-circle" : "circle-o"} 
+                    size={14} 
+                    color={/[A-Z]/.test(password) ? "#39FF14" : "#8E8E93"} 
+                    style={styles.requirementIcon}
+                  />
+                  <Text style={[styles.requirementText, /[A-Z]/.test(password) && styles.requirementTextValid]}>
+                    At least one uppercase letter (A-Z)
+                  </Text>
+                </View>
+                <View style={styles.requirementRow}>
+                  <FontAwesome 
+                    name={/[a-z]/.test(password) ? "check-circle" : "circle-o"} 
+                    size={14} 
+                    color={/[a-z]/.test(password) ? "#39FF14" : "#8E8E93"} 
+                    style={styles.requirementIcon}
+                  />
+                  <Text style={[styles.requirementText, /[a-z]/.test(password) && styles.requirementTextValid]}>
+                    At least one lowercase letter (a-z)
+                  </Text>
+                </View>
+                <View style={styles.requirementRow}>
+                  <FontAwesome 
+                    name={/[0-9]/.test(password) ? "check-circle" : "circle-o"} 
+                    size={14} 
+                    color={/[0-9]/.test(password) ? "#39FF14" : "#8E8E93"} 
+                    style={styles.requirementIcon}
+                  />
+                  <Text style={[styles.requirementText, /[0-9]/.test(password) && styles.requirementTextValid]}>
+                    At least one number (0-9)
+                  </Text>
+                </View>
+              </View>
             )}
 
             {/* RESET PASSWORD CODE INPUT */}
@@ -529,5 +581,35 @@ const styles = StyleSheet.create({
     color: '#39FF14',
     fontSize: 15,
     fontWeight: '700',
+  },
+  requirementsContainer: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  requirementsTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  requirementIcon: {
+    marginRight: 8,
+  },
+  requirementText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  requirementTextValid: {
+    color: '#39FF14',
   },
 });

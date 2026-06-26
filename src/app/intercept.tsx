@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMotusStore } from '../store/useStore';
 
 const EXERCISES = [
@@ -14,6 +15,7 @@ const EXERCISES = [
 
 export default function InterceptScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { 
     selectedExercise, 
     repCount, 
@@ -46,84 +48,96 @@ export default function InterceptScreen() {
     <View style={styles.container}>
       <BlurView intensity={100} style={StyleSheet.absoluteFill} tint="dark" />
       
-      <View style={styles.content}>
-        <Animated.View entering={ZoomIn.duration(800).springify()}>
-          <View style={styles.iconContainer}>
-            <SymbolView name="lock.shield.fill" size={64} tintColor="#FF3B30" fallback={<View style={{ width: 64, height: 64 }}/>} />
-          </View>
-        </Animated.View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContainer,
+          {
+            paddingTop: Math.max(20, insets.top),
+            paddingBottom: Math.max(20, insets.bottom),
+          }
+        ]}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        <View style={styles.content}>
+          <Animated.View entering={ZoomIn.duration(800).springify()}>
+            <View style={styles.iconContainer}>
+              <SymbolView name="lock.shield.fill" size={64} tintColor="#FF3B30" fallback={<View style={{ width: 64, height: 64 }}/>} />
+            </View>
+          </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(200).duration(800)}>
-          <Text style={styles.title}>Set Your Challenge</Text>
-          <Text style={styles.subtitle}>
-            How will you unlock your {activeLockCount <= 1 ? 'app' : 'apps'}?
-          </Text>
-        </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(800)}>
+            <Text style={styles.title}>Set Your Challenge</Text>
+            <Text style={styles.subtitle}>
+              How will you unlock your {activeLockCount <= 1 ? 'app' : 'apps'}?
+            </Text>
+          </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.challengeBox}>
-          <Text style={styles.challengeSummaryText}>
-            Unlock your {activeLockCount <= 1 ? 'app' : 'apps'} for {getEarnedMinutes()} minutes with {repCount} {getExerciseLabel(repCount)}
-          </Text>
+          <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.challengeBox}>
+            <Text style={styles.challengeSummaryText}>
+              Unlock your {activeLockCount <= 1 ? 'app' : 'apps'} for {getEarnedMinutes()} minutes with {repCount} {getExerciseLabel(repCount)}
+            </Text>
 
-          <View style={styles.exerciseContainer}>
-            {EXERCISES.map((ex) => {
-              const isSelected = selectedExercise === ex.id;
-              return (
-                <TouchableOpacity 
-                  key={ex.id} 
-                  activeOpacity={0.8}
-                  onPress={() => setExercise(ex.id as any)}
-                >
-                  <View 
-                    style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
+            <View style={styles.exerciseContainer}>
+              {EXERCISES.map((ex) => {
+                const isSelected = selectedExercise === ex.id;
+                return (
+                  <TouchableOpacity 
+                    key={ex.id} 
+                    activeOpacity={0.8}
+                    onPress={() => setExercise(ex.id as any)}
                   >
-                    <Image 
-                      source={ex.image} 
-                      style={{ width: 40, height: 40, borderRadius: 8, opacity: isSelected ? 1 : 0.4 }} 
-                      resizeMode="contain"
-                    />
-                    <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
-                      {ex.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.repSectionTitle}>Required Reps</Text>
-          <View style={styles.repControlContainer}>
-            <TouchableOpacity 
-              style={styles.repButton} 
-              onPress={() => setRepCount(Math.max(1, repCount - 1))}
-            >
-              <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
-            </TouchableOpacity>
-            
-            <View style={styles.repDisplay}>
-              <Text style={styles.repText}>{repCount}</Text>
+                    <View 
+                      style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
+                    >
+                      <Image 
+                        source={ex.image} 
+                        style={{ width: 40, height: 40, borderRadius: 8, opacity: isSelected ? 1 : 0.4 }} 
+                        resizeMode="contain"
+                      />
+                      <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
+                        {ex.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            <TouchableOpacity 
-              style={styles.repButton} 
-              onPress={() => setRepCount(repCount + 1)}
-            >
-              <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </View>
+            <Text style={styles.repSectionTitle}>Required Reps</Text>
+            <View style={styles.repControlContainer}>
+              <TouchableOpacity 
+                style={styles.repButton} 
+                onPress={() => setRepCount(Math.max(1, repCount - 1))}
+              >
+                <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
+              </TouchableOpacity>
+              
+              <View style={styles.repDisplay}>
+                <Text style={styles.repText}>{repCount}</Text>
+              </View>
 
-      <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.footer}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleStartChallenge} activeOpacity={0.8}>
-          <SymbolView name="camera.viewfinder" size={20} tintColor="#000000" fallback={<View style={{ width: 20, height: 20 }}/>} />
-          <Text style={styles.primaryButtonText}>Start Challenge</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel}>
-          <Text style={styles.secondaryButtonText}>Give Up</Text>
-        </TouchableOpacity>
-      </Animated.View>
+              <TouchableOpacity 
+                style={styles.repButton} 
+                onPress={() => setRepCount(repCount + 1)}
+              >
+                <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+
+        <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.footer}>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleStartChallenge} activeOpacity={0.8}>
+            <SymbolView name="camera.viewfinder" size={20} tintColor="#000000" fallback={<View style={{ width: 20, height: 20 }}/>} />
+            <Text style={styles.primaryButtonText}>Start Challenge</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel}>
+            <Text style={styles.secondaryButtonText}>Give Up</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 }
@@ -132,6 +146,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'space-between',
   },
   content: {
@@ -241,8 +258,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   footer: {
-    padding: 32,
-    paddingBottom: 64,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    width: '100%',
   },
   primaryButton: {
     flexDirection: 'row',

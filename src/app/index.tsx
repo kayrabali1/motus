@@ -1,42 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
-import { useMotusStore } from '../store/useStore';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { token, loadState } = useMotusStore();
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadState().then(() => {
-      setLoading(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!loading && token) {
-      router.replace('/(tabs)');
-    }
-  }, [token, loading]);
 
   const handleGetStarted = () => {
     router.push('/auth');
   };
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar style="light" />
-        <ActivityIndicator size="large" color="#39FF14" />
-      </View>
-    );
-  }
-
 
   return (
     <View style={styles.container}>
@@ -99,40 +74,41 @@ const styles = StyleSheet.create({
   dot: {
     width: 12,
     height: 12,
-    borderRadius: 6,
     backgroundColor: '#39FF14',
+    borderRadius: 6,
+    marginBottom: 12,
     marginLeft: 8,
-    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 20,
+    fontSize: 18,
     color: '#8E8E93',
     textAlign: 'center',
-    lineHeight: 32,
+    lineHeight: 28,
     fontWeight: '500',
+    letterSpacing: 0.5,
   },
   footer: {
     padding: 32,
-    paddingBottom: 64,
+    paddingBottom: 48,
   },
   primaryButton: {
-    backgroundColor: '#FFFFFF',
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
+    backgroundColor: '#39FF14',
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
     shadowColor: '#39FF14',
     shadowOffset: {
       width: 0,
-      height: 0,
+      height: 4,
     },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 8,
   },
   primaryButtonText: {
     color: '#000000',
     fontSize: 18,
     fontWeight: '700',
+    letterSpacing: -0.5,
   },
 });
