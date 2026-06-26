@@ -50,29 +50,9 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var isDown = false
   private var repCount = 0
   
-  // EMA Filter states for joint angles / ratios
-  private var smoothedJointAngle1: CGFloat = 180.0
-  private var smoothedJointAngle2: CGFloat = 0.0
-  private var hasInitializedAngles = false
-  
-  // Cooldown timer
-  private var lastRepTime: Double = 0
-  
   func resetTrackingState() {
     isDown = false
     repCount = 0
-    smoothedJointAngle1 = 180.0
-    smoothedJointAngle2 = 0.0
-    hasInitializedAngles = false
-    lastRepTime = 0
-  }
-  
-  private func smooth(_ current: CGFloat, smoothed: inout CGFloat) {
-    if !hasInitializedAngles {
-      smoothed = current
-    } else {
-      smoothed = 0.3 * current + 0.7 * smoothed
-    }
   }
   
   private func distance(p1: CGPoint, p2: CGPoint) -> CGFloat {
@@ -207,10 +187,6 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   }
   
   private func onRepCompleted() {
-    let currentTime = ProcessInfo.processInfo.systemUptime
-    guard currentTime - lastRepTime >= 1.0 else { return }
-    lastRepTime = currentTime
-    
     repCount += 1
     let isSuccess = repCount == targetReps
     
@@ -243,105 +219,77 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
           
           guard let shoulder = recognizedPoints[isLeft ? .leftShoulder : .rightShoulder],
                 let elbow = recognizedPoints[isLeft ? .leftElbow : .rightElbow],
-                let wrist = recognizedPoints[isLeft ? .leftWrist : .rightWrist],
-                let hip = recognizedPoints[isLeft ? .leftHip : .rightHip],
-                let ankle = recognizedPoints[isLeft ? .leftAnkle : .rightAnkle] else { return }
-                
-          if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 && hip.confidence > 0.5 && ankle.confidence > 0.5 {
-              let bodyAngle = calculateAngle(p1: shoulder.location, p2: hip.location, p3: ankle.location)
-              let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
-              
-              smooth(armAngle, smoothed: &smoothedJointAngle1)
-              smooth(bodyAngle, smoothed: &smoothedJointAngle2)
-              hasInitializedAngles = true
-              
-              // Verify form: Body angle must be relatively straight (plank)
-              let requiredBodyAngle: CGFloat = strictMode ? 155 : 130
-              let requiredDownArmAngle: CGFloat = strictMode ? 75 : 90
-              let requiredUpArmAngle: CGFloat = strictMode ? 165 : 150
-
-              if smoothedJointAngle2 > requiredBodyAngle {
-                  if smoothedJointAngle1 < requiredDownArmAngle && !isDown {
-                      isDown = true
-                  } else if smoothedJointAngle1 > requiredUpArmAngle && isDown {
-                      isDown = false
-                      onRepCompleted()
-                  }
-              }
-          }
-      } else if exerciseType == "squats" {
-          let leftConfidence = (recognizedPoints[.leftHip]?.confidence ?? 0) + (recognizedPoints[.leftKnee]?.confidence ?? 0) + (recognizedPoints[.leftAnkle]?.confidence ?? 0)
-          let rightConfidence = (recognizedPoints[.rightHip]?.confidence ?? 0) + (recognizedPoints[.rightKnee]?.confidence ?? 0) + (recognizedPoints[.rightAnkle]?.confidence ?? 0)
-          
-          let isLeft = leftConfidence > rightConfidence
-          
-          guard let hip = recognizedPoints[isLeft ? .leftHip : .rightHip],
-                let knee = recognizedPoints[isLeft ? .leftKnee : .rightKnee],
-                let ankle = recognizedPoints[isLeft ? .leftAnkle : .rightAnkle] else { return }
-                
-          if hip.confidence > 0.5 && knee.confidence > 0.5 && ankle.confidence > 0.5 {
-              let kneeAngle = calculateAngle(p1: hip.location, p2: knee.location, p3: ankle.location)
-              
-              // Scale-invariant parallel depth ratio
-              let thighLength = distance(p1: hip.location, p2: knee.location)
-              let parallelRatio = thighLength > 0 ? (hip.location.y - knee.location.y) / thighLength : 1.0
-              
-              smooth(kneeAngle, smoothed: &smoothedJointAngle1)
-              smooth(parallelRatio, smoothed: &smoothedJointAngle2)
-              hasInitializedAngles = true
-              
-              // Down & Up checks with optional strict form requirements
-              let requiredDownKneeAngle: CGFloat = strictMode ? 85 : 100
-              let requiredDownRatio: CGFloat = strictMode ? 0.0 : 0.2
-              let requiredUpKneeAngle: CGFloat = strictMode ? 170 : 150
-              let requiredUpRatio: CGFloat = strictMode ? 0.8 : 0.6
-
-              if smoothedJointAngle1 < requiredDownKneeAngle && smoothedJointAngle2 < requiredDownRatio && !isDown {
-                  isDown = true
-              } 
-              else if smoothedJointAngle1 > requiredUpKneeAngle && smoothedJointAngle2 > requiredUpRatio && isDown {
-                  isDown = false
-                  onRepCompleted()
-              }
-          }
-      } else if exerciseType == "pullups" {
-          let leftConfidence = (recognizedPoints[.leftShoulder]?.confidence ?? 0) + (recognizedPoints[.leftElbow]?.confidence ?? 0) + (recognizedPoints[.leftWrist]?.confidence ?? 0)
-          let rightConfidence = (recognizedPoints[.rightShoulder]?.confidence ?? 0) + (recognizedPoints[.rightElbow]?.confidence ?? 0) + (recognizedPoints[.rightWrist]?.confidence ?? 0)
-          
-          let isLeft = leftConfidence > rightConfidence
-          
-          guard let shoulder = recognizedPoints[isLeft ? .leftShoulder : .rightShoulder],
-                let elbow = recognizedPoints[isLeft ? .leftElbow : .rightElbow],
                 let wrist = recognizedPoints[isLeft ? .leftWrist : .rightWrist] else { return }
                 
           if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 {
-              // Ensure wrist is above shoulder
-              if wrist.location.y > shoulder.location.y {
-                  let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
-                  
-                  // Scale-invariant forearm ratio (hip-less tracking)
-                  let forearmLength = distance(p1: elbow.location, p2: wrist.location)
-                  let shoulderWristDistance = distance(p1: shoulder.location, p2: wrist.location)
-                  let pullupRatio = forearmLength > 0 ? shoulderWristDistance / forearmLength : 1.0
-                  
-                  smooth(armAngle, smoothed: &smoothedJointAngle1)
-                  smooth(pullupRatio, smoothed: &smoothedJointAngle2)
-                  hasInitializedAngles = true
-                  
-                  // Pulled up & hanging checks with optional strict form requirements
-                  let requiredUpArmAngle: CGFloat = strictMode ? 65 : 80
-                  let requiredUpRatio: CGFloat = strictMode ? 0.7 : 0.9
-                  let requiredDownArmAngle: CGFloat = strictMode ? 165 : 140
-                  let requiredDownRatio: CGFloat = strictMode ? 1.6 : 1.4
-
-                  if smoothedJointAngle1 < requiredUpArmAngle && smoothedJointAngle2 < requiredUpRatio && !isDown {
-                      isDown = true
-                  } 
-                  else if smoothedJointAngle1 > requiredDownArmAngle && smoothedJointAngle2 > requiredDownRatio && isDown {
-                      isDown = false
-                      onRepCompleted()
-                  }
-              }
+            let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
+            
+            // Calculate scale-invariant shoulder-to-wrist extension ratio if both shoulders are visible
+            var extensionRatio: CGFloat = 1.0
+            if let lShoulder = recognizedPoints[.leftShoulder],
+               let rShoulder = recognizedPoints[.rightShoulder],
+               lShoulder.confidence > 0.5 && rShoulder.confidence > 0.5 {
+                let shoulderDistance = distance(p1: lShoulder.location, p2: rShoulder.location)
+                if shoulderDistance > 0 {
+                    let shoulderWristDist = distance(p1: shoulder.location, p2: wrist.location)
+                    extensionRatio = shoulderWristDist / shoulderDistance
+                }
+            }
+            
+            // Down: Either elbow is bent (< 100) OR chest is low (shoulder close to wrist, ratio < 0.65)
+            let isDownSignal = (armAngle < 100) || (extensionRatio < 0.65)
+            
+            // Up: Either elbow is extended (> 145) OR chest is high (shoulder far from wrist, ratio > 1.1)
+            let isUpSignal = (armAngle > 145) || (extensionRatio > 1.1)
+            
+            if isDownSignal && !isDown {
+                isDown = true
+            } else if isUpSignal && isDown {
+                isDown = false
+                onRepCompleted()
+            }
+          }
+      } else if exerciseType == "squats" {
+          guard let leftHip = recognizedPoints[.leftHip],
+                let leftKnee = recognizedPoints[.leftKnee],
+                let leftAnkle = recognizedPoints[.leftAnkle] else { return }
+                
+          if leftHip.confidence > 0.5 && leftKnee.confidence > 0.5 && leftAnkle.confidence > 0.5 {
+            let angle = calculateAngle(p1: leftHip.location, p2: leftKnee.location, p3: leftAnkle.location)
+            if angle < 100 && !isDown {
+                isDown = true
+            } else if angle > 150 && isDown {
+                isDown = false
+                onRepCompleted()
+            }
+          }
+      } else if exerciseType == "pullups" {
+          guard let leftShoulder = recognizedPoints[.leftShoulder],
+                let leftElbow = recognizedPoints[.leftElbow],
+                let leftWrist = recognizedPoints[.leftWrist],
+                let leftHip = recognizedPoints[.leftHip] else { return }
+                
+          if leftShoulder.confidence > 0.5 && leftElbow.confidence > 0.5 && leftWrist.confidence > 0.5 && leftHip.confidence > 0.5 {
+            
+            // In Vision, Y=0 is bottom, Y=1 is top. Wrist must be above shoulder.
+            if leftWrist.location.y > leftShoulder.location.y {
+                let angle = calculateAngle(p1: leftShoulder.location, p2: leftElbow.location, p3: leftWrist.location)
+                
+                // Compare arm extension to torso length to prevent simple arm-flapping cheats
+                let torsoLength = leftShoulder.location.y - leftHip.location.y
+                let armExtension = leftWrist.location.y - leftShoulder.location.y
+                let ratio = torsoLength > 0 ? armExtension / torsoLength : 1.0
+                
+                // Pulled up: arms are bent tightly (angle < 75) AND hands are close to shoulders (ratio < 0.4)
+                if angle < 75 && ratio < 0.4 && !isDown {
+                    isDown = true // Pulled up
+                } 
+                // Hanging: arms are straight (angle > 140) AND hands are far above shoulders (ratio > 0.7)
+                else if angle > 140 && ratio > 0.7 && isDown {
+                    isDown = false // Hanging down
+                    onRepCompleted()
+                }
+            }
           }
       }
       

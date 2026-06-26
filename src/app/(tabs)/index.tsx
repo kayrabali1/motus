@@ -29,28 +29,28 @@ export default function DashboardScreen() {
         
         {/* Header */}
         <View style={styles.headerContainer}>
-          <Text style={styles.header}>Your Impact</Text>
-          <Text style={styles.subtitle}>
-            {user ? `Welcome back, ${user.name}! 🔥` : 'You\'re an absolute machine! 🔥'}
+          <Text style={styles.greeting}>
+            {user ? `Hey, ${user.name}` : 'Hey there'}
           </Text>
+          <Text style={styles.header}>Dashboard</Text>
         </View>
 
         {/* Hero Card */}
         <View style={styles.heroWrapper}>
           <View style={styles.heroGradient}>
-            {/* Mesh Gradient Background */}
-            <View style={{ position: 'absolute', top: -50, left: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: '#FF2D55', opacity: 0.8 }} />
-            <View style={{ position: 'absolute', bottom: -50, right: -50, width: 250, height: 250, borderRadius: 125, backgroundColor: '#5856D6', opacity: 0.8 }} />
-            <View style={{ position: 'absolute', top: 50, right: -50, width: 150, height: 150, borderRadius: 75, backgroundColor: '#007AFF', opacity: 0.7 }} />
+            {/* Mesh Gradient Background — subtle greens/teals */}
+            <View style={{ position: 'absolute', top: -60, left: -60, width: 200, height: 200, borderRadius: 100, backgroundColor: '#39FF14', opacity: 0.25 }} />
+            <View style={{ position: 'absolute', bottom: -60, right: -60, width: 250, height: 250, borderRadius: 125, backgroundColor: '#0A8454', opacity: 0.35 }} />
+            <View style={{ position: 'absolute', top: 40, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: '#00C9A7', opacity: 0.2 }} />
             <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
             
             <View style={styles.heroContent}>
               <View style={styles.heroTopRow}>
                 <View style={styles.pillBadge}>
-                  <SymbolView name="bolt.fill" size={14} tintColor="#FFD60A" fallback={<View style={{width: 14, height: 14}}/>} />
-                  <Text style={styles.pillText}>HIGH PERFORMANCE</Text>
+                  <SymbolView name="figure.run" size={14} tintColor="#39FF14" fallback={<View style={{width: 14, height: 14}}/>} />
+                  <Text style={styles.pillText}>TODAY'S PROGRESS</Text>
                 </View>
-                <Text style={styles.heroDate}>TODAY</Text>
+                <Text style={styles.heroDate}>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
               </View>
               <Text style={styles.heroValue}>{todayReps}</Text>
               <Text style={styles.heroLabel}>TOTAL REPS COMPLETED</Text>
@@ -164,26 +164,26 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
   },
   headerContainer: {
-    marginBottom: 32,
+    marginBottom: 28,
+  },
+  greeting: {
+    fontSize: 16,
+    color: '#8E8E93',
+    fontWeight: '600',
+    marginBottom: 2,
   },
   header: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#8E8E93',
-    marginTop: 4,
-    fontWeight: '500',
+    letterSpacing: -0.5,
   },
   heroWrapper: {
     marginBottom: 40,
-    shadowColor: '#5856D6',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
+    shadowColor: '#39FF14',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
     elevation: 10,
   },
   heroGradient: {
@@ -206,14 +206,14 @@ const styles = StyleSheet.create({
   pillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 214, 10, 0.15)',
+    backgroundColor: 'rgba(57, 255, 20, 0.12)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
   },
   pillText: {
-    color: '#FFD60A',
-    fontSize: 12,
+    color: '#39FF14',
+    fontSize: 11,
     fontWeight: '800',
     marginLeft: 6,
     letterSpacing: 1,

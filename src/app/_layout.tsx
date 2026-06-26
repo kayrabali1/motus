@@ -26,7 +26,7 @@ export default function RootLayout() {
         setLockExpiration(null);
         router.push('/(tabs)');
       } else {
-        router.push('/camera');
+        router.push('/intercept');
       }
     }
   }, [lastNotificationResponse, lockExpirationTime, router, setLockExpiration, token]);
@@ -42,7 +42,7 @@ export default function RootLayout() {
         router.push('/(tabs)');
       } else {
         // Otherwise, it's the Shield Notification asking to start the challenge
-        router.push('/camera');
+        router.push('/intercept');
       }
     });
     return () => subscription.remove();

@@ -3,7 +3,9 @@ import ManagedSettingsUI
 import UIKit
 
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
-    private func motusShieldConfiguration() -> ShieldConfiguration {
+    private func motusShieldConfiguration(for appName: String) -> ShieldConfiguration {
+        let subtitleText = "Complete a physical challenge to regain access to \(appName)."
+        
         return ShieldConfiguration(
             backgroundBlurStyle: .systemMaterialDark,
             backgroundColor: UIColor.black,
@@ -13,7 +15,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 color: .white
             ),
             subtitle: ShieldConfiguration.Label(
-                text: "This app is locked by Motus. Complete your physical challenge to regain access.",
+                text: subtitleText,
                 color: .lightGray
             ),
             primaryButtonLabel: ShieldConfiguration.Label(
@@ -25,18 +27,22 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
 
     override func configuration(shielding application: Application) -> ShieldConfiguration {
-        return motusShieldConfiguration()
+        let appName = application.localizedDisplayName ?? "this app"
+        return motusShieldConfiguration(for: appName)
     }
     
     override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
-        return motusShieldConfiguration()
+        let appName = application.localizedDisplayName ?? "this app"
+        return motusShieldConfiguration(for: appName)
     }
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
-        return motusShieldConfiguration()
+        let domainName = webDomain.domain ?? "this website"
+        return motusShieldConfiguration(for: domainName)
     }
     
     override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration {
-        return motusShieldConfiguration()
+        let domainName = webDomain.domain ?? "this website"
+        return motusShieldConfiguration(for: domainName)
     }
 }

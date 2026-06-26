@@ -22,6 +22,7 @@ import * as Notifications from 'expo-notifications';
 import MotusVisionView from '../../modules/motus-vision/src/MotusVisionView';
 import { useMotusStore } from '../store/useStore';
 import MotusScreenTime from '../../modules/motus-screen-time/src/MotusScreenTimeModule';
+import { useKeepAwake } from 'expo-keep-awake';
 
 const { width, height } = Dimensions.get('window');
 const MotusVision = requireNativeModule('MotusVision');
@@ -39,6 +40,7 @@ const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
 });
 
 export default function CameraValidationScreen() {
+  useKeepAwake();
   const router = useRouter();
   const { repCount: targetReps, selectedExercise, strictMode, getEarnedMinutes, setLockExpiration, logWorkoutSession } = useMotusStore();
   const [reps, setReps] = useState(0);
@@ -47,7 +49,7 @@ export default function CameraValidationScreen() {
 
   const getInitialInstruction = (exercise: string) => {
     switch (exercise) {
-      case 'pushups': return "Place phone on floor. Face sideways so your entire body (head to toes) is visible.";
+      case 'pushups': return "Place phone on floor in front of you. Face the camera directly so your head and arms are in frame.";
       case 'squats': return "Stand back 6-8 feet. Face sideways so your hip, knee, and ankle are in frame.";
       case 'pullups': return "Ensure the bar, your head, and shoulders are in frame.";
       default: return "Ensure your full body is in frame.";

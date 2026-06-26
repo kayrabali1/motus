@@ -2,5 +2,10 @@
 module.exports = {
   type: "shield-action",
   name: "MotusShieldAction",
-  frameworks: ["ManagedSettings", "FamilyControls", "UserNotifications"]
+  frameworks: ["ManagedSettings", "FamilyControls", "UserNotifications"],
+  entitlements: {
+    "com.apple.security.application-groups": [
+      "group.com.kayrabali.Motus"
+    ]
+  }
 };

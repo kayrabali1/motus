@@ -1,24 +1,46 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useMotusStore } from '../store/useStore';
 
+const EXERCISES = [
+  { id: 'pushups', name: 'Push-ups', image: require('../../assets/images/exercises/pushup.png') },
+  { id: 'squats', name: 'Air Squats', image: require('../../assets/images/exercises/squat.png') },
+  { id: 'pullups', name: 'Pull-ups', image: require('../../assets/images/exercises/pullup.png') },
+] as const;
+
 export default function InterceptScreen() {
   const router = useRouter();
-  const { selectedExercise, repCount } = useMotusStore();
+  const { 
+    selectedExercise, 
+    repCount, 
+    setExercise, 
+    setRepCount,
+    activeLockCount 
+  } = useMotusStore();
 
-  const handleUnlock = () => {
+  const getEarnedMinutes = () => {
+    return repCount * 2;
+  };
+
+  const getExerciseLabel = (count: number) => {
+    if (selectedExercise === 'pushups') return count === 1 ? 'push-up' : 'push-ups';
+    if (selectedExercise === 'squats') return count === 1 ? 'air squat' : 'air squats';
+    if (selectedExercise === 'pullups') return count === 1 ? 'pull-up' : 'pull-ups';
+    return count === 1 ? 'rep' : 'reps';
+  };
+
+  const handleStartChallenge = () => {
+    // The store already has selectedExercise and repCount.
     router.replace('/camera');
   };
 
   const handleCancel = () => {
     router.replace('/(tabs)');
   };
-
-  const exerciseLabel = selectedExercise === 'pushups' ? 'Push-ups' : selectedExercise === 'squats' ? 'Air Squats' : 'Pull-ups';
 
   return (
     <View style={styles.container}>
@@ -32,22 +54,70 @@ export default function InterceptScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).duration(800)}>
-          <Text style={styles.title}>Access Blocked</Text>
+          <Text style={styles.title}>Set Your Challenge</Text>
           <Text style={styles.subtitle}>
-            This application is currently locked. You must complete your physical challenge to regain access.
+            How will you unlock your {activeLockCount <= 1 ? 'app' : 'apps'}?
           </Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.challengeBox}>
-          <Text style={styles.challengeLabel}>CHALLENGE</Text>
-          <Text style={styles.challengeValue}>{repCount} {exerciseLabel}</Text>
+          <Text style={styles.challengeSummaryText}>
+            Unlock your {activeLockCount <= 1 ? 'app' : 'apps'} for {getEarnedMinutes()} minutes with {repCount} {getExerciseLabel(repCount)}
+          </Text>
+
+          <View style={styles.exerciseContainer}>
+            {EXERCISES.map((ex) => {
+              const isSelected = selectedExercise === ex.id;
+              return (
+                <TouchableOpacity 
+                  key={ex.id} 
+                  activeOpacity={0.8}
+                  onPress={() => setExercise(ex.id as any)}
+                >
+                  <View 
+                    style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
+                  >
+                    <Image 
+                      source={ex.image} 
+                      style={{ width: 40, height: 40, borderRadius: 8, opacity: isSelected ? 1 : 0.4 }} 
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
+                      {ex.name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.repSectionTitle}>Required Reps</Text>
+          <View style={styles.repControlContainer}>
+            <TouchableOpacity 
+              style={styles.repButton} 
+              onPress={() => setRepCount(Math.max(1, repCount - 1))}
+            >
+              <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
+            </TouchableOpacity>
+            
+            <View style={styles.repDisplay}>
+              <Text style={styles.repText}>{repCount}</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.repButton} 
+              onPress={() => setRepCount(repCount + 1)}
+            >
+              <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </View>
 
       <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.footer}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleUnlock} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleStartChallenge} activeOpacity={0.8}>
           <SymbolView name="camera.viewfinder" size={20} tintColor="#000000" fallback={<View style={{ width: 20, height: 20 }}/>} />
-          <Text style={styles.primaryButtonText}>Start Validation</Text>
+          <Text style={styles.primaryButtonText}>Start Challenge</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel}>
@@ -68,16 +138,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255, 59, 48, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: 'rgba(255, 59, 48, 0.3)',
   },
@@ -85,15 +155,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 16,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
     color: '#8E8E93',
     textAlign: 'center',
-    lineHeight: 28,
-    marginBottom: 48,
+    marginBottom: 32,
   },
   challengeBox: {
     backgroundColor: 'rgba(255,255,255,0.05)',
@@ -104,17 +173,72 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  challengeLabel: {
-    fontSize: 12,
+  challengeSummaryText: {
+    color: '#39FF14',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  exerciseContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 24,
+  },
+  exerciseCard: {
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    width: 90,
+  },
+  exerciseCardSelected: {
+    borderColor: '#39FF14',
+    backgroundColor: 'rgba(57, 255, 20, 0.1)',
+  },
+  exerciseName: {
     color: '#8E8E93',
+    fontSize: 12,
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  exerciseNameSelected: {
+    color: '#39FF14',
+    fontWeight: '800',
+  },
+  repSectionTitle: {
+    color: '#8E8E93',
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 2,
-    marginBottom: 8,
+    marginBottom: 16,
+    marginTop: 8,
   },
-  challengeValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#39FF14',
+  repControlContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  repDisplay: {
+    width: 80,
+    alignItems: 'center',
+  },
+  repText: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '900',
   },
   footer: {
     padding: 32,

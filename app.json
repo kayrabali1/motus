@@ -10,7 +10,10 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "entitlements": {
-        "com.apple.developer.family-controls": true
+        "com.apple.developer.family-controls": true,
+        "com.apple.security.application-groups": [
+          "group.com.kayrabali.Motus"
+        ]
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Motus needs access to the camera to validate your exercises."

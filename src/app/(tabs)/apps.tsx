@@ -14,11 +14,7 @@ const EXERCISES = [
 
 export default function AppsScreen() {
   const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount } = useMotusStore();
-  const [isConfigModalVisible, setConfigModalVisible] = useState(false);
-  const [isShameModalVisible, setShameModalVisible] = useState(false);
-  const [shameText, setShameText] = useState('');
-  
-  const SHAME_PHRASE = "I am choosing cheap dopamine over my long-term health and fitness goals today. I give up.";
+
 
   async function requestNotificationPermission() {
     const { status } = await Notifications.getPermissionsAsync();
@@ -46,32 +42,39 @@ export default function AppsScreen() {
       await MotusScreenTime.requestAuthorization();
       const success = await MotusScreenTime.showPicker();
       if (success) {
-        // Instead of immediately blocking, show the premium config modal
-        setConfigModalVisible(true);
+        MotusScreenTime.blockApps();
+        const count = await MotusScreenTime.getActiveLockCount();
+        setActiveLockCount(count);
+        if (count > 0) {
+          Alert.alert("Apps Locked", "Your apps are securely locked. You will be prompted to choose a physical challenge when you try to open them.");
+        }
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to configure Screen Time.");
     }
   };
 
-  const confirmLock = async () => {
-    MotusScreenTime.blockApps();
-    setConfigModalVisible(false);
-    const count = await MotusScreenTime.getActiveLockCount();
-    setActiveLockCount(count);
-    Alert.alert("Success", "Apps have been locked. They will now require a physical challenge to open.");
+  const handleViewLockedApps = async () => {
+    try {
+      await MotusScreenTime.showLockedApps();
+      const count = await MotusScreenTime.getActiveLockCount();
+      setActiveLockCount(count);
+    } catch (e) {
+      console.log(e);
+    }
   };
-
-  const handleUnblock = () => {
-    setShameModalVisible(true);
-  };
-
-  const executeUnblock = () => {
-    MotusScreenTime.unblockApps();
-    setActiveLockCount(0);
-    setShameModalVisible(false);
-    setShameText('');
-    Alert.alert("Locks Removed", "Your apps are no longer restricted.");
+  const getExerciseLabel = (reps: number) => {
+    const isPlural = reps !== 1;
+    switch (selectedExercise) {
+      case 'pushups':
+        return isPlural ? 'push-ups' : 'push-up';
+      case 'squats':
+        return isPlural ? 'air squats' : 'air squat';
+      case 'pullups':
+        return isPlural ? 'pull-ups' : 'pull-up';
+      default:
+        return isPlural ? 'reps' : 'rep';
+    }
   };
 
   return (
@@ -83,15 +86,17 @@ export default function AppsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {activeLockCount > 0 ? (
-          <BlurView intensity={20} style={[styles.infoCard, { borderColor: '#FF3B30' }]} tint="dark">
-            <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#FF3B30" fallback={<View style={{ width: 40, height: 40 }}/>} />
-            <Text style={[styles.infoText, { color: '#FF3B30', fontWeight: 'bold', fontSize: 18, marginTop: 12 }]}>
-              {activeLockCount} App{activeLockCount > 1 ? 's' : ''} Locked
-            </Text>
-            <Text style={[styles.infoText, { marginTop: 4 }]}>
-              Challenge: {repCount} {EXERCISES.find(e => e.id === selectedExercise)?.name}
-            </Text>
-          </BlurView>
+          <TouchableOpacity onPress={handleViewLockedApps} activeOpacity={0.8} style={{ width: '100%', alignItems: 'center' }}>
+            <BlurView intensity={20} style={[styles.infoCard, { borderColor: '#FF3B30' }]} tint="dark">
+              <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#FF3B30" fallback={<View style={{ width: 40, height: 40 }}/>} />
+              <Text style={[styles.infoText, { color: '#FF3B30', fontWeight: 'bold', fontSize: 18, marginTop: 12 }]}>
+                {activeLockCount} App{activeLockCount > 1 ? 's' : ''} Locked
+              </Text>
+              <Text style={[styles.infoText, { marginTop: 4, textAlign: 'center' }]}>
+                Tap to view locked apps or emergency disable individually.
+              </Text>
+            </BlurView>
+          </TouchableOpacity>
         ) : (
           <BlurView intensity={15} style={styles.infoCard} tint="light">
             <SymbolView name="shield.lefthalf.filled" size={40} tintColor="#39FF14" fallback={<View style={{ width: 40, height: 40 }}/>} />
@@ -103,132 +108,11 @@ export default function AppsScreen() {
         )}
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleSelectApps}>
-          <Text style={styles.primaryButtonText}>{activeLockCount > 0 ? 'Modify Locked Apps' : 'Select Apps to Lock'}</Text>
+          <Text style={styles.primaryButtonText}>{activeLockCount > 0 ? 'Lock More Apps' : 'Select Apps to Lock'}</Text>
         </TouchableOpacity>
-
-        {activeLockCount > 0 && (
-          <TouchableOpacity style={[styles.secondaryButton, { marginTop: 32 }]} onPress={handleUnblock}>
-            <Text style={[styles.secondaryButtonText, { color: '#FF3B30' }]}>Emergency Disable</Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isConfigModalVisible}
-        onRequestClose={() => setConfigModalVisible(false)}
-      >
-        <BlurView intensity={80} tint="dark" style={styles.modalBackground}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Set Your Challenge</Text>
-            <Text style={styles.modalSubtitle}>How will you unlock your apps?</Text>
 
-            <View style={styles.exerciseContainer}>
-              {EXERCISES.map((ex) => {
-                const isSelected = selectedExercise === ex.id;
-                return (
-                  <TouchableOpacity 
-                    key={ex.id} 
-                    activeOpacity={0.8}
-                    onPress={() => setExercise(ex.id)}
-                  >
-                    <View 
-                      style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
-                    >
-                      <Image 
-                        source={ex.image} 
-                        style={{ width: 40, height: 40, borderRadius: 8, opacity: isSelected ? 1 : 0.4 }} 
-                        resizeMode="contain"
-                      />
-                      <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
-                        {ex.name}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={styles.repSectionTitle}>Required Reps</Text>
-            <View style={styles.repControlContainer}>
-              <TouchableOpacity 
-                style={styles.repButton} 
-                onPress={() => setRepCount(Math.max(1, repCount - 1))}
-              >
-                <SymbolView name="minus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>-</Text>} />
-              </TouchableOpacity>
-              
-              <View style={styles.repDisplay}>
-                <Text style={styles.repText}>{repCount}</Text>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.repButton} 
-                onPress={() => setRepCount(repCount + 1)}
-              >
-                <SymbolView name="plus" size={24} tintColor="#FFFFFF" fallback={<Text style={{color: 'white'}}>+</Text>} />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.confirmButton} onPress={confirmLock}>
-              <Text style={styles.confirmButtonText}>Lock to Earn {getEarnedMinutes()} Minutes</Text>
-              <SymbolView name="lock.fill" size={18} tintColor="#000000" fallback={<View />} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.cancelButton} onPress={() => setConfigModalVisible(false)}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </BlurView>
-      </Modal>
-
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={isShameModalVisible}
-        onRequestClose={() => setShameModalVisible(false)}
-      >
-        <BlurView intensity={80} tint="dark" style={styles.modalBackground}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Walk of Shame</Text>
-            <Text style={styles.modalSubtitle}>To permanently remove your locks without exercising, type the following exact phrase:</Text>
-            
-            <View style={styles.shamePhraseContainer}>
-              <Text style={styles.shamePhraseText}>{SHAME_PHRASE}</Text>
-            </View>
-
-            <TextInput
-              style={styles.shameInput}
-              multiline
-              placeholder="Type the phrase here..."
-              placeholderTextColor="#666"
-              value={shameText}
-              onChangeText={setShameText}
-              selectionColor="#FF3B30"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <TouchableOpacity 
-              style={[styles.dangerButton, shameText !== SHAME_PHRASE && { opacity: 0.5 }]} 
-              onPress={executeUnblock}
-              disabled={shameText !== SHAME_PHRASE}
-            >
-              <Text style={styles.dangerButtonText}>I Give Up, Remove Locks</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.cancelButton} onPress={() => {
-              setShameModalVisible(false);
-              setShameText('');
-            }}>
-              <Text style={styles.cancelButtonText}>Nevermind, I'll Keep Them</Text>
-            </TouchableOpacity>
-          </View>
-        </BlurView>
-      </Modal>
     </View>
   );
 }
@@ -472,6 +356,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+  },
+  challengeSummaryText: {
+    fontSize: 16,
+    color: '#39FF14',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 8,
   },
 });
 
