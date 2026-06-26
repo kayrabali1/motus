@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { FontAwesome } from '@expo/vector-icons';
 import { useMotusStore } from '../store/useStore';
 
@@ -169,14 +169,14 @@ export default function AuthScreen() {
 
           {/* Feedback messages */}
           {activeError && (
-            <Animated.View entering={FadeIn.duration(300)} style={styles.errorAlert}>
+            <View style={styles.errorAlert}>
               <FontAwesome name="exclamation-circle" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
               <Text style={styles.errorAlertText}>{activeError}</Text>
-            </Animated.View>
+            </View>
           )}
 
           {successMessage && (
-            <Animated.View entering={FadeIn.duration(300)} style={styles.successAlert}>
+            <View style={styles.successAlert}>
               <FontAwesome name="check-circle" size={18} color="#39FF14" style={{ marginRight: 8 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.successAlertText}>{successMessage}</Text>
@@ -186,13 +186,13 @@ export default function AuthScreen() {
                   </Text>
                 )}
               </View>
-            </Animated.View>
+            </View>
           )}
 
           <View style={styles.formContainer}>
             {/* SIGN UP NAME INPUT */}
             {!isLogin && !forgotMode && !resetMode && (
-              <Animated.View key="signup-name-view" entering={FadeInDown.delay(200).springify()}>
+              <View key="signup-name-view">
                 <View style={[
                   styles.inputWrapper, 
                   focusedInput === 'name' && styles.inputWrapperFocused
@@ -210,12 +210,12 @@ export default function AuthScreen() {
                     selectionColor="#39FF14"
                   />
                 </View>
-              </Animated.View>
+              </View>
             )}
 
             {/* EMAIL INPUT (Login / Sign Up / Forgot Password) */}
             {!resetMode && (
-              <Animated.View key="auth-email-view" entering={FadeInDown.delay(250).springify()}>
+              <View key="auth-email-view">
                 <View style={[
                   styles.inputWrapper, 
                   focusedInput === 'email' && styles.inputWrapperFocused
@@ -234,12 +234,12 @@ export default function AuthScreen() {
                     selectionColor="#39FF14"
                   />
                 </View>
-              </Animated.View>
+              </View>
             )}
 
             {/* PASSWORD INPUT (Login / Sign Up) */}
             {!forgotMode && !resetMode && (
-              <Animated.View key="auth-password-view" entering={FadeInDown.delay(300).springify()}>
+              <View key="auth-password-view">
                 <View style={[
                   styles.inputWrapper, 
                   focusedInput === 'password' && styles.inputWrapperFocused
@@ -257,12 +257,12 @@ export default function AuthScreen() {
                     selectionColor="#39FF14"
                   />
                 </View>
-              </Animated.View>
+              </View>
             )}
 
             {/* RESET PASSWORD CODE INPUT */}
             {resetMode && (
-              <Animated.View key="reset-code-view" entering={FadeInDown.delay(200).springify()}>
+              <View key="reset-code-view">
                 <View style={[
                   styles.inputWrapper, 
                   focusedInput === 'code' && styles.inputWrapperFocused
@@ -281,12 +281,12 @@ export default function AuthScreen() {
                     selectionColor="#39FF14"
                   />
                 </View>
-              </Animated.View>
+              </View>
             )}
 
             {/* NEW PASSWORD INPUT */}
             {resetMode && (
-              <Animated.View key="reset-newpassword-view" entering={FadeInDown.delay(250).springify()}>
+              <View key="reset-newpassword-view">
                 <View style={[
                   styles.inputWrapper, 
                   focusedInput === 'newPassword' && styles.inputWrapperFocused
@@ -304,23 +304,23 @@ export default function AuthScreen() {
                     selectionColor="#39FF14"
                   />
                 </View>
-              </Animated.View>
+              </View>
             )}
 
             {/* FORGOT PASSWORD BUTTON */}
             {isLogin && !forgotMode && !resetMode && (
-              <Animated.View entering={FadeInDown.delay(350).springify()}>
+              <View>
                 <TouchableOpacity 
                   style={styles.forgotPassword} 
                   onPress={() => setForgotMode(true)}
                 >
                   <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                 </TouchableOpacity>
-              </Animated.View>
+              </View>
             )}
 
             {/* SUBMIT BUTTONS */}
-            <Animated.View entering={FadeInUp.delay(400).springify()}>
+            <View>
               <TouchableOpacity 
                 style={styles.primaryButton}
                 activeOpacity={0.8}
@@ -341,12 +341,12 @@ export default function AuthScreen() {
                   </Text>
                 )}
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           </View>
 
           {/* BACK TO LOGIN FOR FORGOT/RESET MODES */}
           {(forgotMode || resetMode) && (
-            <Animated.View entering={FadeIn.delay(500).duration(800)} style={styles.backToLogin}>
+            <View style={styles.backToLogin}>
               <TouchableOpacity onPress={() => {
                 setForgotMode(false);
                 setResetMode(false);
@@ -354,12 +354,12 @@ export default function AuthScreen() {
               }}>
                 <Text style={styles.footerAction}>Back to Sign In</Text>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           )}
 
           {/* TOGGLE LOGIN / SIGN UP */}
           {!forgotMode && !resetMode && (
-            <Animated.View entering={FadeIn.delay(500).duration(800)} style={styles.footer}>
+            <View style={styles.footer}>
               <Text style={styles.footerText}>
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
               </Text>
@@ -368,7 +368,7 @@ export default function AuthScreen() {
                   {isLogin ? 'Sign Up' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           )}
 
       </ScrollView>
