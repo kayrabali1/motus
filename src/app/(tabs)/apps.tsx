@@ -10,6 +10,9 @@ const EXERCISES = [
   { id: 'pushups', name: 'Push-ups', image: require('../../../assets/images/exercises/pushup.png') },
   { id: 'squats', name: 'Air Squats', image: require('../../../assets/images/exercises/squat.png') },
   { id: 'pullups', name: 'Pull-ups', image: require('../../../assets/images/exercises/pullup.png') },
+  { id: 'jumping_jacks', name: 'Jumping Jacks', image: require('../../../assets/images/exercises/jumping_jacks.png') },
+  { id: 'burpees', name: 'Burpees', image: require('../../../assets/images/exercises/burpees.png') },
+  { id: 'high_knees', name: 'High Knees', image: require('../../../assets/images/exercises/high_knees.png') },
 ];
 
 export default function AppsScreen() {
@@ -72,6 +75,12 @@ export default function AppsScreen() {
         return isPlural ? 'air squats' : 'air squat';
       case 'pullups':
         return isPlural ? 'pull-ups' : 'pull-up';
+      case 'jumping_jacks':
+        return isPlural ? 'jumping jacks' : 'jumping jack';
+      case 'burpees':
+        return isPlural ? 'burpees' : 'burpee';
+      case 'high_knees':
+        return isPlural ? 'high knees' : 'high knee';
       default:
         return isPlural ? 'reps' : 'rep';
     }

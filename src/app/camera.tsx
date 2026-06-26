@@ -52,6 +52,9 @@ export default function CameraValidationScreen() {
       case 'pushups': return "Place phone on floor in front of you. Face the camera directly so your head and arms are in frame.";
       case 'squats': return "Stand back 6-8 feet. Face sideways so your hip, knee, and ankle are in frame.";
       case 'pullups': return "Ensure the bar, your head, and shoulders are in frame.";
+      case 'jumping_jacks': return "Stand back so your full body is in frame. Raise arms above head to start.";
+      case 'burpees': return "Stand back so your full body is in frame, including the floor.";
+      case 'high_knees': return "Stand back 6-8 feet. Face sideways so your hips and knees are in frame.";
       default: return "Ensure your full body is in frame.";
     }
   };

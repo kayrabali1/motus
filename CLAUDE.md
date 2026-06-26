@@ -8,9 +8,10 @@ Motus is a fitness application with vision-based activity tracking. It uses a cr
 - **Routing**: Expo Router (~56.2.11) with file-based routing (`src/app`).
 - **State Management**: Zustand (`^5.0.14`).
 - **Styling / Animations**: React Native Reanimated, CSS-based styling (`global.css`).
+- **Notifications**: Local notifications and scheduling via `expo-notifications`.
 - **Backend Framework**: Node.js with Express.js.
 - **Database**: Google Cloud Firestore (`@google-cloud/firestore`).
-- **Authentication**: Custom JWT-based auth (`jsonwebtoken`, `bcryptjs`).
+- **Authentication**: Custom JWT-based auth (`jsonwebtoken`, `bcryptjs`). Password strength criteria enforced on signup.
 - **Language**: TypeScript (`src/`) and JavaScript (`backend/`).
 
 ## Architecture
@@ -18,8 +19,9 @@ Motus is a fitness application with vision-based activity tracking. It uses a cr
 ### iOS & Android (Frontend)
 - The app uses **Expo** to target both iOS and Android from a single codebase.
 - **UI Components & Routing**: Housed in `src/app` (screens) and `src/components` (reusable UI).
-- **Vision Tracking**: The app uses device cameras to validate and track exercises (e.g., push-ups). Native permissions and worklets are configured for high-performance processing.
-- **State**: Centralized in `src/store/useStore.ts` using Zustand.
+- **Vision Tracking**: The app uses device cameras to validate and track exercises (push-ups, squats, pull-ups, jumping jacks, burpees, high knees). Native permissions and worklets are configured for high-performance processing.
+- **State**: Centralized in `src/store/useStore.ts` using Zustand. Includes user preferences, auth state, and notification configuration.
+- **Notifications**: Uses `expo-notifications` to schedule daily reminders and pre-lock warnings.
 - **Config**: Configured via `app.json` and `package.json`.
 
 ### GCP Backend
@@ -67,3 +69,4 @@ Motus/
 - **Routing**: Follow Expo Router conventions (e.g., `_layout.tsx`, `index.tsx`, `[id].tsx`).
 - **Backend API**: All protected routes must use the `authMiddleware` to validate JWTs. Responses should follow standard JSON structures (`{ data: ... }` or `{ error: ... }`).
 - **State**: Mutate state using Zustand actions defined within the store slice, avoiding localized state for app-wide data (like auth status or workout sessions).
+- **Animations on Forms**: Avoid using Reanimated entering animations on form inputs wrapped in `KeyboardAvoidingView` on RN 0.85 Fabric. Layout recalculations can re-trigger animations, causing layout flashing and loss of keyboard focus.

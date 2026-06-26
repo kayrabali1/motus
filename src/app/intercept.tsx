@@ -11,6 +11,9 @@ const EXERCISES = [
   { id: 'pushups', name: 'Push-ups', image: require('../../assets/images/exercises/pushup.png') },
   { id: 'squats', name: 'Air Squats', image: require('../../assets/images/exercises/squat.png') },
   { id: 'pullups', name: 'Pull-ups', image: require('../../assets/images/exercises/pullup.png') },
+  { id: 'jumping_jacks', name: 'Jumping Jacks', image: require('../../assets/images/exercises/jumping_jacks.png') },
+  { id: 'burpees', name: 'Burpees', image: require('../../assets/images/exercises/burpees.png') },
+  { id: 'high_knees', name: 'High Knees', image: require('../../assets/images/exercises/high_knees.png') },
 ] as const;
 
 export default function InterceptScreen() {
@@ -32,6 +35,9 @@ export default function InterceptScreen() {
     if (selectedExercise === 'pushups') return count === 1 ? 'push-up' : 'push-ups';
     if (selectedExercise === 'squats') return count === 1 ? 'air squat' : 'air squats';
     if (selectedExercise === 'pullups') return count === 1 ? 'pull-up' : 'pull-ups';
+    if (selectedExercise === 'jumping_jacks') return count === 1 ? 'jumping jack' : 'jumping jacks';
+    if (selectedExercise === 'burpees') return count === 1 ? 'burpee' : 'burpees';
+    if (selectedExercise === 'high_knees') return count === 1 ? 'high knee' : 'high knees';
     return count === 1 ? 'rep' : 'reps';
   };
 

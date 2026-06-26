@@ -291,6 +291,59 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
             }
           }
+      } else if exerciseType == "jumping_jacks" {
+          guard let lShoulder = recognizedPoints[.leftShoulder], let rShoulder = recognizedPoints[.rightShoulder],
+                let lWrist = recognizedPoints[.leftWrist], let rWrist = recognizedPoints[.rightWrist],
+                let lAnkle = recognizedPoints[.leftAnkle], let rAnkle = recognizedPoints[.rightAnkle] else { return }
+                
+          if lShoulder.confidence > 0.5 && rShoulder.confidence > 0.5 && lWrist.confidence > 0.5 && rWrist.confidence > 0.5 && lAnkle.confidence > 0.5 && rAnkle.confidence > 0.5 {
+              let shoulderDist = distance(p1: lShoulder.location, p2: rShoulder.location)
+              let ankleDist = distance(p1: lAnkle.location, p2: rAnkle.location)
+              
+              let armsUp = lWrist.location.y > lShoulder.location.y && rWrist.location.y > rShoulder.location.y
+              let legsApart = ankleDist > (shoulderDist * 1.5)
+              let legsTogether = ankleDist < (shoulderDist * 1.2)
+              
+              if armsUp && legsApart && !isDown {
+                  isDown = true
+              } else if !armsUp && legsTogether && isDown {
+                  isDown = false
+                  onRepCompleted()
+              }
+          }
+      } else if exerciseType == "burpees" {
+          guard let shoulder = recognizedPoints[.leftShoulder], let ankle = recognizedPoints[.leftAnkle], let wrist = recognizedPoints[.leftWrist] else { return }
+          
+          if shoulder.confidence > 0.5 && ankle.confidence > 0.5 && wrist.confidence > 0.5 {
+              let verticalDiff = abs(shoulder.location.y - ankle.location.y)
+              let horizontalDiff = abs(shoulder.location.x - ankle.location.x)
+              
+              let isHorizontal = verticalDiff < horizontalDiff
+              let isVertical = verticalDiff > horizontalDiff
+              let armsUp = wrist.location.y > shoulder.location.y
+              
+              if isHorizontal && !isDown {
+                  isDown = true
+              } else if isVertical && armsUp && isDown {
+                  isDown = false
+                  onRepCompleted()
+              }
+          }
+      } else if exerciseType == "high_knees" {
+          guard let lHip = recognizedPoints[.leftHip], let rHip = recognizedPoints[.rightHip],
+                let lKnee = recognizedPoints[.leftKnee], let rKnee = recognizedPoints[.rightKnee] else { return }
+                
+          if lHip.confidence > 0.5 && rHip.confidence > 0.5 && lKnee.confidence > 0.5 && rKnee.confidence > 0.5 {
+              let lKneeUp = lKnee.location.y > lHip.location.y
+              let rKneeUp = rKnee.location.y > rHip.location.y
+              
+              if (lKneeUp || rKneeUp) && !isDown {
+                  isDown = true
+              } else if !lKneeUp && !rKneeUp && isDown {
+                  isDown = false
+                  onRepCompleted()
+              }
+          }
       }
       
     } catch {

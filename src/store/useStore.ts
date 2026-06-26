@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 import MotusScreenTime from '../../modules/motus-screen-time/src/MotusScreenTimeModule';
 
 export const EXERCISE_MULTIPLIERS: Record<string, number> = {
   'pushups': 2,
   'squats': 1,
   'pullups': 3,
+  'jumping_jacks': 2,
+  'burpees': 3,
+  'high_knees': 1,
 };
 
 // We will replace this URL with the actual Cloud Run URL after deployment completes
@@ -24,6 +28,54 @@ interface ActivityLog {
   timestamp: string;
 }
 
+// Notification helpers
+async function requestNotificationPermissions() {
+  const settings = await Notifications.getPermissionsAsync();
+  if (settings.granted || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+    return true;
+  }
+  const request = await Notifications.requestPermissionsAsync({
+    ios: {
+      allowAlert: true,
+      allowBadge: true,
+      allowSound: true,
+    },
+  });
+  return request.granted || request.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+}
+
+async function scheduleDailyReminder(timeStr: string) {
+  // Cancel existing first
+  await cancelDailyReminder();
+
+  const allowed = await requestNotificationPermissions();
+  if (!allowed) return;
+
+  const [hours, minutes] = timeStr.split(':').map(Number);
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'motus_daily_reminder',
+    content: {
+      title: "Time to move! ⚡",
+      body: "Keep your streak alive. Complete your fitness challenge to unlock screen time.",
+      data: { type: 'daily_reminder' },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: hours,
+      minute: minutes,
+    },
+  });
+}
+
+async function cancelDailyReminder() {
+  try {
+    await Notifications.cancelScheduledNotificationAsync('motus_daily_reminder');
+  } catch (e) {
+    console.log('Failed to cancel daily reminder', e);
+  }
+}
+
 interface MotusState {
   // App Config State
   selectedExercise: string;
@@ -31,6 +83,11 @@ interface MotusState {
   strictMode: boolean;
   lockExpirationTime: number | null;
   activeLockCount: number;
+  
+  // Notification State
+  dailyReminderEnabled: boolean;
+  dailyReminderTime: string;
+  preLockWarningEnabled: boolean;
   
   // Auth State
   token: string | null;
@@ -51,6 +108,11 @@ interface MotusState {
   setLockExpiration: (timestamp: number | null) => void;
   setActiveLockCount: (count: number) => void;
   getEarnedMinutes: () => number;
+  
+  // Notification Actions
+  setDailyReminderEnabled: (enabled: boolean) => Promise<void>;
+  setDailyReminderTime: (time: string) => Promise<void>;
+  setPreLockWarningEnabled: (enabled: boolean) => void;
   
   // Auth Actions
   signUp: (name: string, email: string, password: string) => Promise<boolean>;
@@ -76,6 +138,10 @@ export const useMotusStore = create<MotusState>((set, get) => ({
   lockExpirationTime: null,
   activeLockCount: 0,
   
+  dailyReminderEnabled: false,
+  dailyReminderTime: '08:00',
+  preLockWarningEnabled: true,
+  
   token: null,
   user: null,
   authLoading: false,
@@ -99,6 +165,29 @@ export const useMotusStore = create<MotusState>((set, get) => ({
   setStrictMode: (enabled) => {
     set({ strictMode: enabled });
     SecureStore.setItemAsync('motus_strict_mode', enabled ? 'true' : 'false');
+  },
+
+  setDailyReminderEnabled: async (enabled) => {
+    set({ dailyReminderEnabled: enabled });
+    await SecureStore.setItemAsync('motus_daily_reminder_enabled', enabled ? 'true' : 'false');
+    if (enabled) {
+      await scheduleDailyReminder(get().dailyReminderTime);
+    } else {
+      await cancelDailyReminder();
+    }
+  },
+
+  setDailyReminderTime: async (time) => {
+    set({ dailyReminderTime: time });
+    await SecureStore.setItemAsync('motus_daily_reminder_time', time);
+    if (get().dailyReminderEnabled) {
+      await scheduleDailyReminder(time);
+    }
+  },
+
+  setPreLockWarningEnabled: (enabled) => {
+    set({ preLockWarningEnabled: enabled });
+    SecureStore.setItemAsync('motus_pre_lock_warning_enabled', enabled ? 'true' : 'false');
   },
 
   setLockExpiration: (timestamp) => {
@@ -308,6 +397,10 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       const exp = await SecureStore.getItemAsync('motus_expiration');
       const strict = await SecureStore.getItemAsync('motus_strict_mode');
       
+      const dailyReminderVal = await SecureStore.getItemAsync('motus_daily_reminder_enabled');
+      const dailyReminderTimeVal = await SecureStore.getItemAsync('motus_daily_reminder_time');
+      const preLockWarningVal = await SecureStore.getItemAsync('motus_pre_lock_warning_enabled');
+      
       const token = await SecureStore.getItemAsync('motus_token');
       const userStr = await SecureStore.getItemAsync('motus_user');
       const user = userStr ? JSON.parse(userStr) : null;
@@ -317,6 +410,9 @@ export const useMotusStore = create<MotusState>((set, get) => ({
         repCount: count ? parseInt(count, 10) : 10,
         strictMode: strict === 'true',
         lockExpirationTime: exp ? parseInt(exp, 10) : null,
+        dailyReminderEnabled: dailyReminderVal === 'true',
+        dailyReminderTime: dailyReminderTimeVal || '08:00',
+        preLockWarningEnabled: preLockWarningVal !== 'false', // Default to true if not set
         token,
         user,
       });
