@@ -321,13 +321,29 @@ export default function DashboardScreen() {
               const calorieCoef = log.exercise === 'pushups' ? 1.2 : log.exercise === 'pullups' ? 2.0 : log.exercise === 'squats' ? 0.5 : log.exercise === 'jumping_jacks' ? 0.8 : log.exercise === 'burpees' ? 2.5 : log.exercise === 'high_knees' ? 1.0 : 1.0;
               const calories = log.calories || Math.round(log.reps * calorieCoef);
 
+              const isFirst = index === 0;
+
               return (
                 <View key={log.id} style={styles.timelineItem}>
                   <View style={styles.timelineLeft}>
-                    <View style={[styles.timelineNode, { borderColor: tintColor, backgroundColor: `${tintColor}10` }]}>
+                    {/* Timeline Line */}
+                    {!isLast && (
+                      <View style={[
+                        styles.timelineLine,
+                        isFirst && { top: '50%' }
+                      ]} />
+                    )}
+                    {isLast && !isFirst && (
+                      <View style={[
+                        styles.timelineLine,
+                        { bottom: '50%' }
+                      ]} />
+                    )}
+
+                    {/* Timeline Node */}
+                    <View style={[styles.timelineNode, { borderColor: tintColor, backgroundColor: '#000000' }]}>
                       <SymbolView name={iconName as any} size={14} tintColor={tintColor} />
                     </View>
-                    {!isLast && <View style={styles.timelineLine} />}
                   </View>
                   
                   <BlurView intensity={10} style={styles.timelineCard} tint="dark">
@@ -587,8 +603,10 @@ const styles = StyleSheet.create({
   },
   timelineLeft: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
     width: 32,
+    position: 'relative',
   },
   timelineNode: {
     width: 32,
@@ -597,13 +615,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 3,
   },
   timelineLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
     width: 1.5,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    flex: 1,
-    marginTop: 8,
-    marginBottom: -8,
   },
   timelineCard: {
     flex: 1,
