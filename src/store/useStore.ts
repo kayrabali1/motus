@@ -376,7 +376,8 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     if (updatedWeekly.length > 0) {
       const currentWeekIndex = updatedWeekly.length - 1;
       const currentWeek = [...updatedWeekly[currentWeekIndex]];
-      const todayDateStr = new Date().toISOString().split('T')[0];
+      const d = new Date();
+      const todayDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const dayIndex = currentWeek.findIndex(d => d.date === todayDateStr);
       if (dayIndex !== -1) {
         currentWeek[dayIndex] = {
@@ -403,6 +404,10 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       await SecureStore.setItemAsync('motus_today_unlocks', updatedTodayUnlocks.toString());
       await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(updatedLogs));
       await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(updatedWeekly));
+      
+      const d = new Date();
+      const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      await SecureStore.setItemAsync('motus_today_date', localDateStr);
     } catch (e) {
       console.log('Failed to save optimistic stats to SecureStore', e);
     }
@@ -454,6 +459,10 @@ export const useMotusStore = create<MotusState>((set, get) => ({
         await SecureStore.setItemAsync('motus_today_unlocks', data.today.unlocks.toString());
         await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(data.activityLogs));
         await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
+
+        const d = new Date();
+        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        await SecureStore.setItemAsync('motus_today_date', localDateStr);
       }
     } catch (e) {
       console.log('Failed to fetch stats from api', e);
@@ -473,9 +482,22 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       const userStr = await SecureStore.getItemAsync('motus_user');
       const user = userStr ? JSON.parse(userStr) : null;
       
-      const todayRepsStr = await SecureStore.getItemAsync('motus_today_reps');
-      const todayCaloriesStr = await SecureStore.getItemAsync('motus_today_calories');
-      const todayUnlocksStr = await SecureStore.getItemAsync('motus_today_unlocks');
+      const d = new Date();
+      const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const cachedTodayDate = await SecureStore.getItemAsync('motus_today_date');
+      const isSameDay = cachedTodayDate === localDateStr;
+
+      const todayRepsStr = isSameDay ? await SecureStore.getItemAsync('motus_today_reps') : '0';
+      const todayCaloriesStr = isSameDay ? await SecureStore.getItemAsync('motus_today_calories') : '0';
+      const todayUnlocksStr = isSameDay ? await SecureStore.getItemAsync('motus_today_unlocks') : '0';
+      
+      if (!isSameDay) {
+        await SecureStore.setItemAsync('motus_today_date', localDateStr);
+        await SecureStore.setItemAsync('motus_today_reps', '0');
+        await SecureStore.setItemAsync('motus_today_calories', '0');
+        await SecureStore.setItemAsync('motus_today_unlocks', '0');
+      }
+
       const activityLogsStr = await SecureStore.getItemAsync('motus_activity_logs');
       const weeklyCaloriesStr = await SecureStore.getItemAsync('motus_weekly_calories');
       

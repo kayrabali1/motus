@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useMotusStore, EXERCISE_MULTIPLIERS } from '../../store/useStore';
 import Svg, { Line } from 'react-native-svg';
@@ -19,11 +20,13 @@ export default function DashboardScreen() {
     user 
   } = useMotusStore();
 
-  useEffect(() => {
-    if (token) {
-      fetchStatsAndActivity();
-    }
-  }, [token]);
+  useFocusEffect(
+    useCallback(() => {
+      if (token) {
+        fetchStatsAndActivity();
+      }
+    }, [token])
+  );
 
   const todayDateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',

@@ -389,6 +389,10 @@ describe('useMotusStore Store Unit Tests', () => {
         if (key === 'motus_today_unlocks') return Promise.resolve('2');
         if (key === 'motus_activity_logs') return Promise.resolve(JSON.stringify(mockLogs));
         if (key === 'motus_weekly_calories') return Promise.resolve(JSON.stringify(mockWeekly));
+        if (key === 'motus_today_date') {
+          const d = new Date();
+          return Promise.resolve(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+        }
         return Promise.resolve(null);
       });
 
