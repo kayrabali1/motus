@@ -188,55 +188,65 @@ export default function DashboardScreen() {
                 const weekAverage = weekTotal / 7;
                 
                 return (
-                  <View key={wIdx} style={{ width: paneWidth, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, paddingTop: 10 }}>
-                    {week.map((item) => {
-                      const percentHeight = Math.max(8, (item.calories / maxCalories) * 100);
-                      const isToday = item.date === new Date().toISOString().split('T')[0];
-                      const isBelowAverage = item.calories < weekAverage;
+                  <View key={wIdx} style={{ width: paneWidth, height: 140 }}>
+                    {/* Dotted Average Line */}
+                    {weekAverage > 0 && (
+                      <View style={[styles.averageLineContainer, { bottom: 21 + (weekAverage / maxCalories) * 100 }]} pointerEvents="none">
+                        <View style={styles.averageLine} />
+                        <Text style={styles.averageLineLabel}>avg: {Math.round(weekAverage)}</Text>
+                      </View>
+                    )}
 
-                      let barColor = 'rgba(57, 255, 20, 0.5)';
-                      if (isBelowAverage) {
-                        barColor = isToday ? '#FF9500' : 'rgba(255, 149, 0, 0.5)';
-                      } else {
-                        barColor = isToday ? '#39FF14' : 'rgba(57, 255, 20, 0.5)';
-                      }
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', width: '100%' }}>
+                      {week.map((item) => {
+                        const percentHeight = Math.max(8, (item.calories / maxCalories) * 100);
+                        const isToday = item.date === new Date().toISOString().split('T')[0];
+                        const isBelowAverage = item.calories < weekAverage;
 
-                      return (
-                        <View key={item.date} style={styles.barColumn}>
-                          <Text style={[
-                            styles.barCaloriesLabel, 
-                            isToday && styles.activeBarCaloriesLabel,
-                            isToday && isBelowAverage && styles.activeBarCaloriesLabelAmber
-                          ]}>
-                            {item.calories}
-                          </Text>
-                          <View style={styles.barTrack}>
-                            <View 
-                              style={[
-                                styles.barFill, 
-                                { 
-                                  height: `${percentHeight}%`,
-                                  backgroundColor: barColor
-                                },
-                                isToday && {
-                                  shadowColor: isBelowAverage ? '#FF9500' : '#39FF14',
-                                  shadowOffset: { width: 0, height: 0 },
-                                  shadowOpacity: 0.6,
-                                  shadowRadius: 8,
-                                }
-                              ]} 
-                            />
+                        let barColor = 'rgba(57, 255, 20, 0.5)';
+                        if (isBelowAverage) {
+                          barColor = isToday ? '#FF9500' : 'rgba(255, 149, 0, 0.5)';
+                        } else {
+                          barColor = isToday ? '#39FF14' : 'rgba(57, 255, 20, 0.5)';
+                        }
+
+                        return (
+                          <View key={item.date} style={styles.barColumn}>
+                            <Text style={[
+                              styles.barCaloriesLabel, 
+                              isToday && styles.activeBarCaloriesLabel,
+                              isToday && isBelowAverage && styles.activeBarCaloriesLabelAmber
+                            ]}>
+                              {item.calories}
+                            </Text>
+                            <View style={styles.barTrack}>
+                              <View 
+                                style={[
+                                  styles.barFill, 
+                                  { 
+                                    height: `${percentHeight}%`,
+                                    backgroundColor: barColor
+                                  },
+                                  isToday && {
+                                    shadowColor: isBelowAverage ? '#FF9500' : '#39FF14',
+                                    shadowOffset: { width: 0, height: 0 },
+                                    shadowOpacity: 0.6,
+                                    shadowRadius: 8,
+                                  }
+                                ]} 
+                              />
+                            </View>
+                            <Text style={[
+                              styles.barDayLabel, 
+                              isToday && styles.activeBarDayLabel,
+                              isToday && isBelowAverage && styles.activeBarDayLabelAmber
+                            ]}>
+                              {item.dayLabel}
+                            </Text>
                           </View>
-                          <Text style={[
-                            styles.barDayLabel, 
-                            isToday && styles.activeBarDayLabel,
-                            isToday && isBelowAverage && styles.activeBarDayLabelAmber
-                          ]}>
-                            {item.dayLabel}
-                          </Text>
-                        </View>
-                      );
-                    })}
+                        );
+                      })}
+                    </View>
                   </View>
                 );
               })}
@@ -810,7 +820,6 @@ const styles = StyleSheet.create({
   },
   activePageIndicatorDot: {
     backgroundColor: '#39FF14',
-    width: 12,
   },
   activeBarCaloriesLabelAmber: {
     color: '#FF9500',
@@ -819,5 +828,34 @@ const styles = StyleSheet.create({
   activeBarDayLabelAmber: {
     color: '#FF9500',
     fontWeight: '900',
+  },
+  averageLineContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  averageLine: {
+    flex: 1,
+    height: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderStyle: 'dashed',
+    borderRadius: 1,
+  },
+  averageLineLabel: {
+    position: 'absolute',
+    right: 0,
+    top: -7,
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.6)',
+    backgroundColor: '#1E1E1E',
+    paddingHorizontal: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
   },
 });
