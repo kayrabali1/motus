@@ -132,6 +132,17 @@ export default function AppsScreen() {
           </BlurView>
         )}
 
+        {/* Focus warning tip */}
+        <BlurView intensity={10} style={[styles.infoCard, { borderColor: 'rgba(255, 204, 0, 0.2)', borderWidth: 1, marginTop: 8 }]} tint="dark">
+          <SymbolView name="bell.slash.fill" size={24} tintColor="#FFCC00" fallback={<View />} />
+          <Text style={[styles.infoText, { fontSize: 13, marginTop: 8, color: '#FFCC00', fontWeight: '700' }]}>
+            IMPORTANT FOCUS MODE TIP
+          </Text>
+          <Text style={[styles.infoText, { fontSize: 12, marginTop: 4, opacity: 0.8, lineHeight: 18 }]}>
+            Ensure Do Not Disturb or Sleep focus mode is disabled. If active, iOS will silence the launch banner when you try to unlock an app.
+          </Text>
+        </BlurView>
+
         <TouchableOpacity style={styles.primaryButton} onPress={handleSelectApps}>
           <Text style={styles.primaryButtonText}>{activeLockCount > 0 ? 'Lock More Apps' : 'Select Apps to Lock'}</Text>
         </TouchableOpacity>

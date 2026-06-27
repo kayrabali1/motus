@@ -4,7 +4,7 @@ import UIKit
 
 class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private func motusShieldConfiguration(for appName: String) -> ShieldConfiguration {
-        let subtitleText = "Complete a physical challenge to regain access to \(appName)."
+        let subtitleText = "Complete a physical challenge to regain access to \(appName).\n\n⚠️ Ensure Sleep/Focus/Do Not Disturb modes are off to receive the challenge notification!"
         
         return ShieldConfiguration(
             backgroundBlurStyle: .systemMaterialDark,
