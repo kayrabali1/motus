@@ -470,19 +470,46 @@ export const useMotusStore = create<MotusState>((set, get) => ({
           }
         });
 
+        // Adjust weeklyCalories for timezone shifts using the activityLogs
+        const adjustedWeekly = data.weeklyCalories ? JSON.parse(JSON.stringify(data.weeklyCalories)) : [];
+        logs.forEach((log: any) => {
+          const utcDateStr = log.timestamp.split('T')[0];
+          const logDate = new Date(log.timestamp);
+          const logLocalStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+          
+          if (utcDateStr !== logLocalStr && adjustedWeekly.length > 0) {
+            // Find and subtract from UTC day slot (where old backend placed it)
+            for (let w = 0; w < adjustedWeekly.length; w++) {
+              const utcDayObj = adjustedWeekly[w].find((item: any) => item.date === utcDateStr);
+              if (utcDayObj) {
+                utcDayObj.calories = Math.max(0, utcDayObj.calories - log.calories);
+                break;
+              }
+            }
+            // Find and add to local day slot (where it actually belongs)
+            for (let w = 0; w < adjustedWeekly.length; w++) {
+              const localDayObj = adjustedWeekly[w].find((item: any) => item.date === logLocalStr);
+              if (localDayObj) {
+                localDayObj.calories += log.calories;
+                break;
+              }
+            }
+          }
+        });
+
         set({
           todayReps: computedReps,
           todayCalories: computedCalories,
           todayUnlocks: computedUnlocks,
           activityLogs: logs,
-          weeklyCalories: data.weeklyCalories || [],
+          weeklyCalories: adjustedWeekly,
         });
 
         await SecureStore.setItemAsync('motus_today_reps', computedReps.toString());
         await SecureStore.setItemAsync('motus_today_calories', computedCalories.toString());
         await SecureStore.setItemAsync('motus_today_unlocks', computedUnlocks.toString());
         await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(logs));
-        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
+        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(adjustedWeekly));
         await SecureStore.setItemAsync('motus_today_date', localTodayStr);
       }
     } catch (e) {

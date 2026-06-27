@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.53% </span>
+                <span class="strong">92.46% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>217/232</span>
+                <span class='fraction'>233/252</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">78.7% </span>
+                <span class="strong">78.07% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>85/108</span>
+                <span class='fraction'>89/114</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90.47% </span>
+                <span class="strong">91.66% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>19/21</span>
+                <span class='fraction'>22/24</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.33% </span>
+                <span class="strong">92.11% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>210/225</span>
+                <span class='fraction'>222/241</span>
             </div>
         
             
@@ -636,7 +636,34 @@
 <a name='L571'></a><a href='#L571'>571</a>
 <a name='L572'></a><a href='#L572'>572</a>
 <a name='L573'></a><a href='#L573'>573</a>
-<a name='L574'></a><a href='#L574'>574</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L574'></a><a href='#L574'>574</a>
+<a name='L575'></a><a href='#L575'>575</a>
+<a name='L576'></a><a href='#L576'>576</a>
+<a name='L577'></a><a href='#L577'>577</a>
+<a name='L578'></a><a href='#L578'>578</a>
+<a name='L579'></a><a href='#L579'>579</a>
+<a name='L580'></a><a href='#L580'>580</a>
+<a name='L581'></a><a href='#L581'>581</a>
+<a name='L582'></a><a href='#L582'>582</a>
+<a name='L583'></a><a href='#L583'>583</a>
+<a name='L584'></a><a href='#L584'>584</a>
+<a name='L585'></a><a href='#L585'>585</a>
+<a name='L586'></a><a href='#L586'>586</a>
+<a name='L587'></a><a href='#L587'>587</a>
+<a name='L588'></a><a href='#L588'>588</a>
+<a name='L589'></a><a href='#L589'>589</a>
+<a name='L590'></a><a href='#L590'>590</a>
+<a name='L591'></a><a href='#L591'>591</a>
+<a name='L592'></a><a href='#L592'>592</a>
+<a name='L593'></a><a href='#L593'>593</a>
+<a name='L594'></a><a href='#L594'>594</a>
+<a name='L595'></a><a href='#L595'>595</a>
+<a name='L596'></a><a href='#L596'>596</a>
+<a name='L597'></a><a href='#L597'>597</a>
+<a name='L598'></a><a href='#L598'>598</a>
+<a name='L599'></a><a href='#L599'>599</a>
+<a name='L600'></a><a href='#L600'>600</a>
+<a name='L601'></a><a href='#L601'>601</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1104,6 +1131,33 @@
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1681,19 +1735,46 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
           }
         });
 &nbsp;
+        // Adjust weeklyCalories for timezone shifts using the activityLogs
+        const adjustedWeekly = data.weeklyCalories ? JSON.parse(JSON.stringify(data.weeklyCalories)) : [];
+        logs.forEach((log: any) =&gt; {
+          const utcDateStr = log.timestamp.split('T')[0];
+          const logDate = new Date(log.timestamp);
+          const logLocalStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+          
+          if (utcDateStr !== logLocalStr &amp;&amp; adjustedWeekly.length &gt; 0) {
+            // Find and subtract from UTC day slot (where old backend placed it)
+            for (let w = 0; w &lt; adjustedWeekly.length; w++) {
+              const utcDayObj = adjustedWeekly[w].find((item: any) =&gt; item.date === utcDateStr);
+              <span class="missing-if-branch" title="if path not taken" >I</span>if (utcDayObj) {
+<span class="cstat-no" title="statement not covered" >                utcDayObj.calories = Math.max(0, utcDayObj.calories - log.calories);</span>
+<span class="cstat-no" title="statement not covered" >                break;</span>
+              }
+            }
+            // Find and add to local day slot (where it actually belongs)
+            for (let w = 0; w &lt; adjustedWeekly.length; w++) {
+              const localDayObj = adjustedWeekly[w].find((item: any) =&gt; item.date === logLocalStr);
+              <span class="missing-if-branch" title="if path not taken" >I</span>if (localDayObj) {
+<span class="cstat-no" title="statement not covered" >                localDayObj.calories += log.calories;</span>
+<span class="cstat-no" title="statement not covered" >                break;</span>
+              }
+            }
+          }
+        });
+&nbsp;
         set({
           todayReps: computedReps,
           todayCalories: computedCalories,
           todayUnlocks: computedUnlocks,
           activityLogs: logs,
-          weeklyCalories: data.weeklyCalories || [],
+          weeklyCalories: adjustedWeekly,
         });
 &nbsp;
         await SecureStore.setItemAsync('motus_today_reps', computedReps.toString());
         await SecureStore.setItemAsync('motus_today_calories', computedCalories.toString());
         await SecureStore.setItemAsync('motus_today_unlocks', computedUnlocks.toString());
         await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(logs));
-        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
+        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(adjustedWeekly));
         await SecureStore.setItemAsync('motus_today_date', localTodayStr);
       }
     } catch (e) {
@@ -1789,7 +1870,7 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-06-27T22:52:47.819Z
+                at 2026-06-27T22:56:22.602Z
             </div>
         <script src="../prettify.js"></script>
         <script>
