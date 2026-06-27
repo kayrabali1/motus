@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94% </span>
+                <span class="strong">93.9% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>188/200</span>
+                <span class='fraction'>185/197</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">83.69% </span>
+                <span class="strong">84.88% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>77/92</span>
+                <span class='fraction'>73/86</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.78% </span>
+                <span class="strong">93.68% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>181/193</span>
+                <span class='fraction'>178/190</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -577,28 +577,7 @@
 <a name='L512'></a><a href='#L512'>512</a>
 <a name='L513'></a><a href='#L513'>513</a>
 <a name='L514'></a><a href='#L514'>514</a>
-<a name='L515'></a><a href='#L515'>515</a>
-<a name='L516'></a><a href='#L516'>516</a>
-<a name='L517'></a><a href='#L517'>517</a>
-<a name='L518'></a><a href='#L518'>518</a>
-<a name='L519'></a><a href='#L519'>519</a>
-<a name='L520'></a><a href='#L520'>520</a>
-<a name='L521'></a><a href='#L521'>521</a>
-<a name='L522'></a><a href='#L522'>522</a>
-<a name='L523'></a><a href='#L523'>523</a>
-<a name='L524'></a><a href='#L524'>524</a>
-<a name='L525'></a><a href='#L525'>525</a>
-<a name='L526'></a><a href='#L526'>526</a>
-<a name='L527'></a><a href='#L527'>527</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L515'></a><a href='#L515'>515</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -908,13 +887,10 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
@@ -1129,15 +1105,6 @@ export const EXERCISE_MULTIPLIERS: Record&lt;string, number&gt; = {
   'high_knees': 1,
 };
 &nbsp;
-export const CALORIES_PER_REP: Record&lt;string, number&gt; = {
-  'pushups': 0.4,
-  'squats': 0.5,
-  'pullups': 0.5,
-  'jumping_jacks': 0.3,
-  'burpees': 0.6,
-  'high_knees': 0.2,
-};
-&nbsp;
 // We will replace this URL with the actual Cloud Run URL after deployment completes
 export const API_BASE_URL = 'https://motus-backend-555323311848.us-central1.run.app';
 &nbsp;
@@ -1218,7 +1185,7 @@ interface MotusState {
   clearAuthError: () =&gt; void;
   
   // Workout Actions
-  logWorkoutSession: (exercise: string, reps: number, unlockedApp?: string | null) =&gt; Promise&lt;void&gt;;
+  logWorkoutSession: (exercise: string, reps: number) =&gt; Promise&lt;void&gt;;
   fetchStatsAndActivity: () =&gt; Promise&lt;void&gt;;
   
   loadState: () =&gt; Promise&lt;void&gt;;
@@ -1426,22 +1393,19 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
   },
   
   // Workout Actions
-  logWorkoutSession: async (exercise, reps, unlockedAppFromCall) =&gt; {
+  logWorkoutSession: async (exercise, reps) =&gt; {
     const { token, getEarnedMinutes } = get();
     
     // 1. Calculate stats and perform local optimistic update
     const minutes = getEarnedMinutes();
-    let unlockedApp: string | null = unlockedAppFromCall || null;
-    <span class="missing-if-branch" title="else path not taken" >E</span>if (!unlockedApp) {
-      try {
-        unlockedApp = await MotusScreenTime.getPendingUnlockAppName();
-      } catch (e) {
-<span class="cstat-no" title="statement not covered" >        console.log('Failed to get pending unlock app name', e);</span>
-      }
+    let unlockedApp: string | null = null;
+    try {
+      unlockedApp = await MotusScreenTime.getPendingUnlockAppName();
+    } catch (e) {
+<span class="cstat-no" title="statement not covered" >      console.log('Failed to get pending unlock app name', e);</span>
     }
 &nbsp;
-    const calorieCoef = CALORIES_PER_REP[exercise] || <span class="branch-1 cbranch-no" title="branch not covered" >0.4;</span>
-    const caloriesBurned = Math.ceil(reps * calorieCoef);
+    const caloriesBurned = Math.round(reps * 0.4);
     
     const newLog: ActivityLog = {
       id: `local-${Date.now()}`,
@@ -1450,7 +1414,7 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
       calories: caloriesBurned,
       minutes,
       unlockedApp,
-      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     };
 &nbsp;
     const updatedTodayReps = get().todayReps + reps;
@@ -1463,7 +1427,7 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
     if (updatedWeekly.length !== 3) {
       const currentMonday = new Date();
       const day = currentMonday.getDay();
-      const diff = day === 0 ? <span class="branch-0 cbranch-no" title="branch not covered" >6 </span>: day - 1;
+      const diff = day === 0 ? 6 : <span class="branch-1 cbranch-no" title="branch not covered" >day - 1;</span>
       currentMonday.setDate(currentMonday.getDate() - diff);
       currentMonday.setHours(0, 0, 0, 0);
 &nbsp;
@@ -1648,7 +1612,7 @@ export const useMotusStore = create&lt;MotusState&gt;((set, get) =&gt; ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-06-27T21:25:32.534Z
+                at 2026-06-27T22:18:57.809Z
             </div>
         <script src="../prettify.js"></script>
         <script>

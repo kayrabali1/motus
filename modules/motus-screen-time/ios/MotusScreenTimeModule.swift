@@ -84,10 +84,26 @@ public class MotusScreenTimeModule: Module {
             print("No pending unlock token found.")
         }
         sharedDefaults?.removeObject(forKey: "PendingUnlockApplicationName")
+        
+        // Clean up direct file if present
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.kayrabali.Motus") {
+            let fileURL = containerURL.appendingPathComponent("pending_app.txt")
+            try? FileManager.default.removeItem(at: fileURL)
+        }
       }
     }
 
     AsyncFunction("getPendingUnlockAppName") { (promise: Promise) in
+      // Try direct file first
+      if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.kayrabali.Motus") {
+          let fileURL = containerURL.appendingPathComponent("pending_app.txt")
+          if let appName = try? String(contentsOf: fileURL, encoding: .utf8), !appName.isEmpty {
+              promise.resolve(appName)
+              return
+          }
+      }
+      
+      // Fallback to UserDefaults
       let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus")
       let appName = sharedDefaults?.string(forKey: "PendingUnlockApplicationName")
       promise.resolve(appName)
