@@ -5,7 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMotusStore } from '../store/useStore';
+import { useMotusStore, EXERCISE_MULTIPLIERS } from '../store/useStore';
 
 const EXERCISES = [
   { id: 'pushups', name: 'Push-ups', image: require('../../assets/images/exercises/pushup.png') },
@@ -28,7 +28,8 @@ export default function InterceptScreen() {
   } = useMotusStore();
 
   const getEarnedMinutes = () => {
-    return repCount * 2;
+    const multiplier = EXERCISE_MULTIPLIERS[selectedExercise] || 1;
+    return repCount * multiplier;
   };
 
   const getExerciseLabel = (count: number) => {
@@ -80,9 +81,23 @@ export default function InterceptScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.challengeBox}>
-            <Text style={styles.challengeSummaryText}>
-              Unlock your {activeLockCount <= 1 ? 'app' : 'apps'} for {getEarnedMinutes()} minutes with {repCount} {getExerciseLabel(repCount)}
-            </Text>
+            <View style={styles.summaryContainer}>
+              <Text style={styles.summaryTextBase}>
+                Unlock your {activeLockCount <= 1 ? 'app' : 'apps'} for{' '}
+              </Text>
+              <Animated.Text key={`min-${getEarnedMinutes()}`} entering={ZoomIn.springify()} style={styles.summaryHighlight}>
+                {getEarnedMinutes()}
+              </Animated.Text>
+              <Text style={styles.summaryTextBase}>
+                {' '}minutes with{' '}
+              </Text>
+              <Animated.Text key={`rep-${repCount}`} entering={ZoomIn.springify()} style={styles.summaryHighlight}>
+                {repCount}
+              </Animated.Text>
+              <Animated.Text key={`lbl-${selectedExercise}-${repCount}`} entering={ZoomIn.springify()} style={styles.summaryTextBase}>
+                {' '}{getExerciseLabel(repCount)}
+              </Animated.Text>
+            </View>
 
             <View style={styles.exerciseContainer}>
               {EXERCISES.map((ex) => {
@@ -92,19 +107,16 @@ export default function InterceptScreen() {
                     key={ex.id} 
                     activeOpacity={0.8}
                     onPress={() => setExercise(ex.id as any)}
+                    style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
                   >
-                    <View 
-                      style={[styles.exerciseCard, isSelected && styles.exerciseCardSelected]}
-                    >
-                      <Image 
-                        source={ex.image} 
-                        style={{ width: 40, height: 40, borderRadius: 8, opacity: isSelected ? 1 : 0.4 }} 
-                        resizeMode="contain"
-                      />
-                      <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]}>
-                        {ex.name}
-                      </Text>
-                    </View>
+                    <Image 
+                      source={ex.image} 
+                      style={{ width: 44, height: 44, opacity: isSelected ? 1 : 0.5 }} 
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.exerciseName, isSelected && styles.exerciseNameSelected]} numberOfLines={1} adjustsFontSizeToFit>
+                      {ex.name}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -196,28 +208,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  challengeSummaryText: {
+  summaryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  summaryTextBase: {
     color: '#39FF14',
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
+    lineHeight: 32,
+  },
+  summaryHighlight: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    textShadowColor: 'rgba(255,255,255,0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+    marginHorizontal: 4,
   },
   exerciseContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
     width: '100%',
     marginBottom: 24,
   },
   exerciseCard: {
     alignItems: 'center',
-    padding: 12,
+    justifyContent: 'center',
+    padding: 8,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.1)',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    width: 90,
+    width: '28%',
+    aspectRatio: 1,
   },
   exerciseCardSelected: {
     borderColor: '#39FF14',

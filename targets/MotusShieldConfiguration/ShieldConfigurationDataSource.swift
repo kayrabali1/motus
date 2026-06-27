@@ -28,21 +28,37 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = application.localizedDisplayName ?? "this app"
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus") {
+            sharedDefaults.set(appName, forKey: "PendingUnlockApplicationName")
+            sharedDefaults.synchronize()
+        }
         return motusShieldConfiguration(for: appName)
     }
     
     override func configuration(shielding application: Application, in category: ActivityCategory) -> ShieldConfiguration {
         let appName = application.localizedDisplayName ?? "this app"
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus") {
+            sharedDefaults.set(appName, forKey: "PendingUnlockApplicationName")
+            sharedDefaults.synchronize()
+        }
         return motusShieldConfiguration(for: appName)
     }
     
     override func configuration(shielding webDomain: WebDomain) -> ShieldConfiguration {
         let domainName = webDomain.domain ?? "this website"
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus") {
+            sharedDefaults.set(domainName, forKey: "PendingUnlockApplicationName")
+            sharedDefaults.synchronize()
+        }
         return motusShieldConfiguration(for: domainName)
     }
     
     override func configuration(shielding webDomain: WebDomain, in category: ActivityCategory) -> ShieldConfiguration {
         let domainName = webDomain.domain ?? "this website"
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus") {
+            sharedDefaults.set(domainName, forKey: "PendingUnlockApplicationName")
+            sharedDefaults.synchronize()
+        }
         return motusShieldConfiguration(for: domainName)
     }
 }

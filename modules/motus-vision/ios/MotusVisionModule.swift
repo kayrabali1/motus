@@ -11,7 +11,7 @@ public class MotusVisionModule: Module {
     }
 
     View(MotusVisionView.self) {
-      Events("onRepDetected")
+      Events("onRepDetected", "onBodyLocked", "onProgressChanged")
       
       Prop("exerciseType") { (view: MotusVisionView, type: String) in
         view.exerciseType = type
@@ -37,6 +37,9 @@ public class MotusVisionModule: Module {
 
 class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   let onRepDetected = EventDispatcher()
+  let onBodyLocked = EventDispatcher()
+  let onProgressChanged = EventDispatcher()
+  
   var exerciseType: String = "pushups"
   var playSound: Bool = true
   var targetReps: Int = 0
@@ -50,9 +53,22 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   private var isDown = false
   private var repCount = 0
   
+  private var isBodyLocked = false
+  private var lockStartTime: CFTimeInterval?
+  private var lastAlignedTime: CFTimeInterval?
+  
+  // Calibration references
+  private var maxVerticalDist: CGFloat = 0.0
+  private var maxHipKneeDist: CGFloat = 0.0
+  
   func resetTrackingState() {
     isDown = false
     repCount = 0
+    isBodyLocked = false
+    lockStartTime = nil
+    lastAlignedTime = nil
+    maxVerticalDist = 0.0
+    maxHipKneeDist = 0.0
   }
   
   private func distance(p1: CGPoint, p2: CGPoint) -> CGFloat {
@@ -117,6 +133,18 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
   }
 
+  private func playLockdownChime() {
+    guard playSound else { return }
+    DispatchQueue.main.async {
+      // 1111 is a camera focus lock sound
+      AudioServicesPlaySystemSound(1111)
+      
+      let generator = UIImpactFeedbackGenerator(style: .medium)
+      generator.prepare()
+      generator.impactOccurred()
+    }
+  }
+
   /// Play a success chime - distinctly different from the normal beep
   static func playSuccessChime() {
     DispatchQueue.main.async {
@@ -155,6 +183,16 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "videoQueue"))
     if captureSession.canAddOutput(videoOutput) { captureSession.addOutput(videoOutput) }
     
+    // Set video orientation to portrait for upright pose analysis
+    if let connection = videoOutput.connection(with: .video) {
+      if connection.isVideoOrientationSupported {
+        connection.videoOrientation = .portrait
+      }
+      if connection.isVideoMirroringSupported {
+        connection.isVideoMirrored = true
+      }
+    }
+    
     previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
     previewLayer.videoGravity = .resizeAspectFill
     layer.addSublayer(previewLayer)
@@ -174,9 +212,21 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
     super.layoutSubviews()
     previewLayer.frame = bounds
     overlayLayer.frame = bounds
+    if let connection = previewLayer.connection {
+      if connection.isVideoOrientationSupported {
+        connection.videoOrientation = .portrait
+      }
+    }
   }
 
   func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    if connection.isVideoOrientationSupported && connection.videoOrientation != .portrait {
+      connection.videoOrientation = .portrait
+    }
+    if connection.isVideoMirroringSupported && !connection.isVideoMirrored {
+      connection.isVideoMirrored = true
+    }
+    
     guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
     
     let request = VNDetectHumanBodyPoseRequest { [weak self] req, err in
@@ -211,82 +261,218 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
       let recognizedPoints = try observation.recognizedPoints(.all)
       self.drawSkeleton(recognizedPoints)
       
+      // 1. Determine if the body is aligned (visible with confidence > 0.5)
+      var isAligned = false
       if exerciseType == "pushups" {
-          let leftConfidence = (recognizedPoints[.leftShoulder]?.confidence ?? 0) + (recognizedPoints[.leftElbow]?.confidence ?? 0) + (recognizedPoints[.leftWrist]?.confidence ?? 0)
-          let rightConfidence = (recognizedPoints[.rightShoulder]?.confidence ?? 0) + (recognizedPoints[.rightElbow]?.confidence ?? 0) + (recognizedPoints[.rightWrist]?.confidence ?? 0)
+          let leftConfidence = (recognizedPoints[.leftShoulder]?.confidence ?? 0) > 0.5 &&
+                               (recognizedPoints[.leftElbow]?.confidence ?? 0) > 0.5 &&
+                               (recognizedPoints[.leftWrist]?.confidence ?? 0) > 0.5
+          let rightConfidence = (recognizedPoints[.rightShoulder]?.confidence ?? 0) > 0.5 &&
+                                (recognizedPoints[.rightElbow]?.confidence ?? 0) > 0.5 &&
+                                (recognizedPoints[.rightWrist]?.confidence ?? 0) > 0.5
+          isAligned = leftConfidence || rightConfidence
+      } else if exerciseType == "squats" {
+          let leftConfidence = (recognizedPoints[.leftHip]?.confidence ?? 0) > 0.5 &&
+                               (recognizedPoints[.leftKnee]?.confidence ?? 0) > 0.5 &&
+                               (recognizedPoints[.leftAnkle]?.confidence ?? 0) > 0.5
+          let rightConfidence = (recognizedPoints[.rightHip]?.confidence ?? 0) > 0.5 &&
+                                (recognizedPoints[.rightKnee]?.confidence ?? 0) > 0.5 &&
+                                (recognizedPoints[.rightAnkle]?.confidence ?? 0) > 0.5
+          isAligned = leftConfidence || rightConfidence
+      } else if exerciseType == "high_knees" {
+          isAligned = (recognizedPoints[.leftHip]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.rightHip]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.leftKnee]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.rightKnee]?.confidence ?? 0) > 0.5
+      } else if exerciseType == "jumping_jacks" {
+          isAligned = (recognizedPoints[.leftShoulder]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.rightShoulder]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.leftWrist]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.rightWrist]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.leftAnkle]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.rightAnkle]?.confidence ?? 0) > 0.5
+      } else if exerciseType == "burpees" {
+          isAligned = (recognizedPoints[.leftShoulder]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.leftAnkle]?.confidence ?? 0) > 0.5 &&
+                      (recognizedPoints[.leftWrist]?.confidence ?? 0) > 0.5
+      } else {
+          isAligned = (recognizedPoints[.leftShoulder]?.confidence ?? 0) > 0.5 ||
+                      (recognizedPoints[.rightShoulder]?.confidence ?? 0) > 0.5
+      }
+
+      // 2. Manage lockdown state & timers
+      let now = CACurrentMediaTime()
+      if isAligned {
+          lastAlignedTime = now
+          if lockStartTime == nil {
+              lockStartTime = now
+          } else if now - lockStartTime! >= 1.5 {
+              if !isBodyLocked {
+                  isBodyLocked = true
+                  playLockdownChime()
+                  DispatchQueue.main.async {
+                      self.onBodyLocked(["locked": true])
+                  }
+              }
+          }
+      } else {
+          lockStartTime = nil
+          if isBodyLocked {
+              // 2.0 second grace period to prevent minor hiccups from breaking flow
+              if let lastAligned = lastAlignedTime, now - lastAligned > 2.0 {
+                  isBodyLocked = false
+                  DispatchQueue.main.async {
+                      self.onBodyLocked(["locked": false])
+                      self.onProgressChanged(["progress": 0.0])
+                  }
+              }
+          }
+      }
+
+      // 3. Do not count reps if we are not locked down
+      guard isBodyLocked else { return }
+
+      // 4. Track reps based on the selected exercise
+      if exerciseType == "pushups" {
+          var headPoint: CGPoint? = nil
+          if let neckJoint = recognizedPoints[.neck], neckJoint.confidence > 0.4 {
+              headPoint = neckJoint.location
+          } else if let lShoulder = recognizedPoints[.leftShoulder], let rShoulder = recognizedPoints[.rightShoulder],
+                    lShoulder.confidence > 0.4 && rShoulder.confidence > 0.4 {
+              headPoint = CGPoint(x: (lShoulder.location.x + rShoulder.location.x)/2.0, y: (lShoulder.location.y + rShoulder.location.y)/2.0)
+          }
+          
+          guard let headLoc = headPoint,
+                let lWrist = recognizedPoints[.leftWrist],
+                let rWrist = recognizedPoints[.rightWrist] else { return }
+                
+          if lWrist.confidence > 0.4 && rWrist.confidence > 0.4 {
+              let wristCenter = CGPoint(x: (lWrist.location.x + rWrist.location.x)/2.0, y: (lWrist.location.y + rWrist.location.y)/2.0)
+              let wristDist = distance(p1: lWrist.location, p2: rWrist.location)
+              
+              guard wristDist > 0 else { return }
+              
+              let pushupDist = distance(p1: headLoc, p2: wristCenter)
+              let pushupRatio = pushupDist / wristDist
+              
+              // Calibrate plank/straight arm height (max pushupRatio seen during tracking/lock)
+              self.maxVerticalDist = max(self.maxVerticalDist, pushupRatio)
+              
+              if self.maxVerticalDist > 0 {
+                  let relativeRatio = pushupRatio / self.maxVerticalDist
+                  
+                  // Progress: from plank (1.0 relativeRatio) down to chest-to-floor (0.70 relativeRatio)
+                  let progress = max(0.0, min(1.0, (1.0 - relativeRatio) / 0.30))
+                  DispatchQueue.main.async {
+                      self.onProgressChanged(["progress": progress])
+                  }
+                  
+                  // Down: relativeRatio < 0.70 (30% drop in head-to-wrist distance)
+                  // Up: relativeRatio > 0.88 (return to 88% height)
+                  if relativeRatio < 0.70 && !isDown {
+                      isDown = true
+                  } else if relativeRatio > 0.88 && isDown {
+                      isDown = false
+                      onRepCompleted()
+                  }
+              }
+          }
+      } else if exerciseType == "squats" {
+          // Front-facing squats using vertical hip-to-ankle projection along the torso axis
+          guard let lShoulder = recognizedPoints[.leftShoulder],
+                let rShoulder = recognizedPoints[.rightShoulder],
+                let lHip = recognizedPoints[.leftHip],
+                let rHip = recognizedPoints[.rightHip],
+                let lAnkle = recognizedPoints[.leftAnkle],
+                let rAnkle = recognizedPoints[.rightAnkle] else { return }
+                
+          if lShoulder.confidence > 0.4 && rShoulder.confidence > 0.4 &&
+             lHip.confidence > 0.4 && rHip.confidence > 0.4 &&
+             lAnkle.confidence > 0.4 && rAnkle.confidence > 0.4 {
+              
+              // Torso vector from hip center to shoulder center
+              let shCenter = CGPoint(x: (lShoulder.location.x + rShoulder.location.x)/2.0, y: (lShoulder.location.y + rShoulder.location.y)/2.0)
+              let hipCenter = CGPoint(x: (lHip.location.x + rHip.location.x)/2.0, y: (lHip.location.y + rHip.location.y)/2.0)
+              let torsoVec = CGPoint(x: shCenter.x - hipCenter.x, y: shCenter.y - hipCenter.y)
+              let torsoLen = sqrt(torsoVec.x * torsoVec.x + torsoVec.y * torsoVec.y)
+              
+              guard torsoLen > 0 else { return }
+              
+              // Project both left and right hip-to-ankle vectors onto the torso vector
+              let lLegVec = CGPoint(x: lHip.location.x - lAnkle.location.x, y: lHip.location.y - lAnkle.location.y)
+              let rLegVec = CGPoint(x: rHip.location.x - rAnkle.location.x, y: rHip.location.y - rAnkle.location.y)
+              
+              let lProj = (lLegVec.x * torsoVec.x + lLegVec.y * torsoVec.y) / torsoLen
+              let rProj = (rLegVec.x * torsoVec.x + rLegVec.y * torsoVec.y) / torsoLen
+              let avgProj = (lProj + rProj) / 2.0
+              
+              let squatRatio = avgProj / torsoLen
+              
+              // Calibrate standing height reference (max squatRatio seen during standing lock)
+              self.maxVerticalDist = max(self.maxVerticalDist, squatRatio)
+              
+              if self.maxVerticalDist > 0 {
+                  let relativeRatio = squatRatio / self.maxVerticalDist
+                  
+                  // Progress: from standing (1.0 relativeRatio) down to target (0.75 relativeRatio)
+                  let progress = max(0.0, min(1.0, (1.0 - relativeRatio) / 0.25))
+                  DispatchQueue.main.async {
+                      self.onProgressChanged(["progress": progress])
+                  }
+                  
+                  // Down: relativeRatio < 0.75 (25% height drop along torso axis)
+                  // Up: relativeRatio > 0.90 (return to 90% standing height)
+                  if relativeRatio < 0.75 && !isDown {
+                      isDown = true
+                  } else if relativeRatio > 0.90 && isDown {
+                      isDown = false
+                      onRepCompleted()
+                  }
+              }
+          }
+      } else if exerciseType == "pullups" {
+          // Side-agnostic simple ratio/angle heuristic
+          let lSh = recognizedPoints[.leftShoulder]?.confidence ?? 0
+          let lEl = recognizedPoints[.leftElbow]?.confidence ?? 0
+          let lWr = recognizedPoints[.leftWrist]?.confidence ?? 0
+          let lHp = recognizedPoints[.leftHip]?.confidence ?? 0
+          let leftConfidence = lSh + lEl + lWr + lHp
+          
+          let rSh = recognizedPoints[.rightShoulder]?.confidence ?? 0
+          let rEl = recognizedPoints[.rightElbow]?.confidence ?? 0
+          let rWr = recognizedPoints[.rightWrist]?.confidence ?? 0
+          let rHp = recognizedPoints[.rightHip]?.confidence ?? 0
+          let rightConfidence = rSh + rEl + rWr + rHp
           
           let isLeft = leftConfidence > rightConfidence
           
           guard let shoulder = recognizedPoints[isLeft ? .leftShoulder : .rightShoulder],
                 let elbow = recognizedPoints[isLeft ? .leftElbow : .rightElbow],
-                let wrist = recognizedPoints[isLeft ? .leftWrist : .rightWrist] else { return }
+                let wrist = recognizedPoints[isLeft ? .leftWrist : .rightWrist],
+                let hip = recognizedPoints[isLeft ? .leftHip : .rightHip] else { return }
                 
-          if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 {
-            let armAngle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
-            
-            // Calculate scale-invariant shoulder-to-wrist extension ratio if both shoulders are visible
-            var extensionRatio: CGFloat = 1.0
-            if let lShoulder = recognizedPoints[.leftShoulder],
-               let rShoulder = recognizedPoints[.rightShoulder],
-               lShoulder.confidence > 0.5 && rShoulder.confidence > 0.5 {
-                let shoulderDistance = distance(p1: lShoulder.location, p2: rShoulder.location)
-                if shoulderDistance > 0 {
-                    let shoulderWristDist = distance(p1: shoulder.location, p2: wrist.location)
-                    extensionRatio = shoulderWristDist / shoulderDistance
-                }
-            }
-            
-            // Down: Either elbow is bent (< 100) OR chest is low (shoulder close to wrist, ratio < 0.65)
-            let isDownSignal = (armAngle < 100) || (extensionRatio < 0.65)
-            
-            // Up: Either elbow is extended (> 145) OR chest is high (shoulder far from wrist, ratio > 1.1)
-            let isUpSignal = (armAngle > 145) || (extensionRatio > 1.1)
-            
-            if isDownSignal && !isDown {
-                isDown = true
-            } else if isUpSignal && isDown {
-                isDown = false
-                onRepCompleted()
-            }
-          }
-      } else if exerciseType == "squats" {
-          guard let leftHip = recognizedPoints[.leftHip],
-                let leftKnee = recognizedPoints[.leftKnee],
-                let leftAnkle = recognizedPoints[.leftAnkle] else { return }
-                
-          if leftHip.confidence > 0.5 && leftKnee.confidence > 0.5 && leftAnkle.confidence > 0.5 {
-            let angle = calculateAngle(p1: leftHip.location, p2: leftKnee.location, p3: leftAnkle.location)
-            if angle < 100 && !isDown {
-                isDown = true
-            } else if angle > 150 && isDown {
-                isDown = false
-                onRepCompleted()
-            }
-          }
-      } else if exerciseType == "pullups" {
-          guard let leftShoulder = recognizedPoints[.leftShoulder],
-                let leftElbow = recognizedPoints[.leftElbow],
-                let leftWrist = recognizedPoints[.leftWrist],
-                let leftHip = recognizedPoints[.leftHip] else { return }
-                
-          if leftShoulder.confidence > 0.5 && leftElbow.confidence > 0.5 && leftWrist.confidence > 0.5 && leftHip.confidence > 0.5 {
-            
-            // In Vision, Y=0 is bottom, Y=1 is top. Wrist must be above shoulder.
-            if leftWrist.location.y > leftShoulder.location.y {
-                let angle = calculateAngle(p1: leftShoulder.location, p2: leftElbow.location, p3: leftWrist.location)
+          if shoulder.confidence > 0.5 && elbow.confidence > 0.5 && wrist.confidence > 0.5 && hip.confidence > 0.5 {
+            if wrist.location.y > shoulder.location.y {
+                let angle = calculateAngle(p1: shoulder.location, p2: elbow.location, p3: wrist.location)
                 
                 // Compare arm extension to torso length to prevent simple arm-flapping cheats
-                let torsoLength = leftShoulder.location.y - leftHip.location.y
-                let armExtension = leftWrist.location.y - leftShoulder.location.y
-                let ratio = torsoLength > 0 ? armExtension / torsoLength : 1.0
+                let torsoLength: CGFloat = shoulder.location.y - hip.location.y
+                let armExtension: CGFloat = wrist.location.y - shoulder.location.y
+                let ratio: CGFloat = torsoLength > 0 ? armExtension / torsoLength : 1.0
                 
-                // Pulled up: arms are bent tightly (angle < 75) AND hands are close to shoulders (ratio < 0.4)
-                if angle < 75 && ratio < 0.4 && !isDown {
-                    isDown = true // Pulled up
+                // Target is ratio < 0.45, starting from straight hang ratio 0.65.
+                let progress = max(0.0, min(1.0, (0.65 - ratio) / 0.20))
+                DispatchQueue.main.async {
+                    self.onProgressChanged(["progress": progress])
+                }
+                
+                // Pulled up: arms are bent tightly (angle < 80) AND hands are close to shoulders (ratio < 0.45)
+                if angle < 80 && ratio < 0.45 && !isDown {
+                    isDown = true
                 } 
-                // Hanging: arms are straight (angle > 140) AND hands are far above shoulders (ratio > 0.7)
-                else if angle > 140 && ratio > 0.7 && isDown {
-                    isDown = false // Hanging down
+                // Hanging: arms are straight (angle > 135) AND hands are far above shoulders (ratio > 0.65)
+                else if angle > 135 && ratio > 0.65 && isDown {
+                    isDown = false
                     onRepCompleted()
                 }
             }
@@ -330,18 +516,60 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
               }
           }
       } else if exerciseType == "high_knees" {
-          guard let lHip = recognizedPoints[.leftHip], let rHip = recognizedPoints[.rightHip],
-                let lKnee = recognizedPoints[.leftKnee], let rKnee = recognizedPoints[.rightKnee] else { return }
+          // Front-facing high knees ratio tracking projected along the torso axis
+          guard let lShoulder = recognizedPoints[.leftShoulder],
+                let rShoulder = recognizedPoints[.rightShoulder],
+                let lHip = recognizedPoints[.leftHip],
+                let rHip = recognizedPoints[.rightHip],
+                let lKnee = recognizedPoints[.leftKnee],
+                let rKnee = recognizedPoints[.rightKnee] else { return }
                 
-          if lHip.confidence > 0.5 && rHip.confidence > 0.5 && lKnee.confidence > 0.5 && rKnee.confidence > 0.5 {
-              let lKneeUp = lKnee.location.y > lHip.location.y
-              let rKneeUp = rKnee.location.y > rHip.location.y
+          if lShoulder.confidence > 0.4 && rShoulder.confidence > 0.4 &&
+             lHip.confidence > 0.4 && rHip.confidence > 0.4 &&
+             lKnee.confidence > 0.4 && rKnee.confidence > 0.4 {
               
-              if (lKneeUp || rKneeUp) && !isDown {
-                  isDown = true
-              } else if !lKneeUp && !rKneeUp && isDown {
-                  isDown = false
-                  onRepCompleted()
+              // Torso vector from hip center to shoulder center
+              let shCenter = CGPoint(x: (lShoulder.location.x + rShoulder.location.x)/2.0, y: (lShoulder.location.y + rShoulder.location.y)/2.0)
+              let hipCenter = CGPoint(x: (lHip.location.x + rHip.location.x)/2.0, y: (lHip.location.y + rHip.location.y)/2.0)
+              let torsoVec = CGPoint(x: shCenter.x - hipCenter.x, y: shCenter.y - hipCenter.y)
+              let torsoLen = sqrt(torsoVec.x * torsoVec.x + torsoVec.y * torsoVec.y)
+              
+              guard torsoLen > 0 else { return }
+              
+              // Project knee-to-hip vectors onto the torso vector
+              let lKneeVec = CGPoint(x: lHip.location.x - lKnee.location.x, y: lHip.location.y - lKnee.location.y)
+              let rKneeVec = CGPoint(x: rHip.location.x - rKnee.location.x, y: rHip.location.y - rKnee.location.y)
+              
+              let lProj = (lKneeVec.x * torsoVec.x + lKneeVec.y * torsoVec.y) / torsoLen
+              let rProj = (rKneeVec.x * torsoVec.x + rKneeVec.y * torsoVec.y) / torsoLen
+              
+              // Calibrate standing thigh length ratio
+              self.maxHipKneeDist = max(self.maxHipKneeDist, max(lProj, rProj))
+              
+              if self.maxHipKneeDist > 0 {
+                  let lRatio = lProj / self.maxHipKneeDist
+                  let rRatio = rProj / self.maxHipKneeDist
+                  
+                  // Knee Up (active): ratio < 0.25 (knee raised 75% of standing distance along torso axis)
+                  let lKneeUp = lRatio < 0.25
+                  let rKneeUp = rRatio < 0.25
+                  
+                  // Knee Down (inactive): return past 75% height
+                  let lKneeDown = lRatio > 0.75
+                  let rKneeDown = rRatio > 0.75
+                  
+                  // Progress represents the height of whichever knee is lifted higher
+                  let progress = max(0.0, min(1.0, (1.0 - min(lRatio, rRatio)) / 0.75))
+                  DispatchQueue.main.async {
+                      self.onProgressChanged(["progress": progress])
+                  }
+                  
+                  if (lKneeUp || rKneeUp) && !isDown {
+                      isDown = true
+                  } else if (lKneeDown && rKneeDown) && isDown {
+                      isDown = false
+                      onRepCompleted()
+                  }
               }
           }
       }
@@ -364,6 +592,16 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   private func drawSkeleton(_ recognizedPoints: [VNHumanBodyPoseObservation.JointName : VNRecognizedPoint]) {
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
+      
+      // Update color based on lockdown status (Yellow when searching, Green when locked)
+      if self.isBodyLocked {
+          self.overlayLayer.fillColor = UIColor(red: 0.22, green: 1.0, blue: 0.08, alpha: 0.8).cgColor
+          self.overlayLayer.strokeColor = UIColor(red: 0.22, green: 1.0, blue: 0.08, alpha: 1.0).cgColor
+      } else {
+          // Dynamic warm yellow color
+          self.overlayLayer.fillColor = UIColor(red: 1.0, green: 0.80, blue: 0.0, alpha: 0.8).cgColor
+          self.overlayLayer.strokeColor = UIColor(red: 1.0, green: 0.80, blue: 0.0, alpha: 1.0).cgColor
+      }
       
       let path = UIBezierPath()
       let jointsToDraw: [VNHumanBodyPoseObservation.JointName] = [
@@ -402,7 +640,10 @@ class MotusVisionView: ExpoView, AVCaptureVideoDataOutputSampleBufferDelegate {
   }
 
   private func convert(point: CGPoint) -> CGPoint {
-      let convertedPoint = CGPoint(x: point.x, y: 1.0 - point.y)
-      return previewLayer.layerPointConverted(fromCaptureDevicePoint: convertedPoint)
+      // Direct scaling of portrait normalized coordinates to bounds layout.
+      // Since front camera frames are already portrait and mirrored, we map X directly.
+      let x = point.x * bounds.width
+      let y = (1.0 - point.y) * bounds.height
+      return CGPoint(x: x, y: y)
   }
 }

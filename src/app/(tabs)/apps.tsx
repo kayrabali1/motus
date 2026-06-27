@@ -16,7 +16,7 @@ const EXERCISES = [
 ];
 
 export default function AppsScreen() {
-  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount } = useMotusStore();
+  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount, setLockExpiration } = useMotusStore();
 
 
   async function requestNotificationPermission() {
@@ -59,7 +59,23 @@ export default function AppsScreen() {
 
   const handleViewLockedApps = async () => {
     try {
-      await MotusScreenTime.showLockedApps();
+      const result = await MotusScreenTime.showLockedApps() as { action?: string; durationSeconds?: number } | null;
+      if (result && result.action === 'sprint' && result.durationSeconds) {
+        const expTime = Date.now() + (result.durationSeconds * 1000);
+        setLockExpiration(expTime);
+        
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Time's up! ⏳",
+            body: "Your 2-minute emergency sprint is over. Apps are locked again.",
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: result.durationSeconds
+          },
+        });
+      }
+      
       const count = await MotusScreenTime.getActiveLockCount();
       setActiveLockCount(count);
     } catch (e) {

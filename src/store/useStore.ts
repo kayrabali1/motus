@@ -26,6 +26,9 @@ interface ActivityLog {
   exercise: string;
   reps: number;
   timestamp: string;
+  minutes?: number;
+  calories?: number;
+  unlockedApp?: string | null;
 }
 
 // Notification helpers
@@ -44,38 +47,6 @@ async function requestNotificationPermissions() {
   return request.granted || request.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
 }
 
-async function scheduleDailyReminder(timeStr: string) {
-  // Cancel existing first
-  await cancelDailyReminder();
-
-  const allowed = await requestNotificationPermissions();
-  if (!allowed) return;
-
-  const [hours, minutes] = timeStr.split(':').map(Number);
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: 'motus_daily_reminder',
-    content: {
-      title: "Time to move! ⚡",
-      body: "Keep your streak alive. Complete your fitness challenge to unlock screen time.",
-      data: { type: 'daily_reminder' },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: hours,
-      minute: minutes,
-    },
-  });
-}
-
-async function cancelDailyReminder() {
-  try {
-    await Notifications.cancelScheduledNotificationAsync('motus_daily_reminder');
-  } catch (e) {
-    console.log('Failed to cancel daily reminder', e);
-  }
-}
-
 interface MotusState {
   // App Config State
   selectedExercise: string;
@@ -85,9 +56,7 @@ interface MotusState {
   activeLockCount: number;
   
   // Notification State
-  dailyReminderEnabled: boolean;
-  dailyReminderTime: string;
-  preLockWarningEnabled: boolean;
+  appRelockAlertEnabled: boolean;
   
   // Auth State
   token: string | null;
@@ -100,6 +69,7 @@ interface MotusState {
   todayCalories: number;
   todayUnlocks: number;
   activityLogs: ActivityLog[];
+  weeklyCalories: { dayLabel: string; calories: number; date: string }[][];
   
   // App Settings Actions
   setExercise: (exercise: string) => void;
@@ -110,9 +80,7 @@ interface MotusState {
   getEarnedMinutes: () => number;
   
   // Notification Actions
-  setDailyReminderEnabled: (enabled: boolean) => Promise<void>;
-  setDailyReminderTime: (time: string) => Promise<void>;
-  setPreLockWarningEnabled: (enabled: boolean) => void;
+  setAppRelockAlertEnabled: (enabled: boolean) => void;
   
   // Auth Actions
   signUp: (name: string, email: string, password: string) => Promise<boolean>;
@@ -138,9 +106,7 @@ export const useMotusStore = create<MotusState>((set, get) => ({
   lockExpirationTime: null,
   activeLockCount: 0,
   
-  dailyReminderEnabled: false,
-  dailyReminderTime: '08:00',
-  preLockWarningEnabled: true,
+  appRelockAlertEnabled: true,
   
   token: null,
   user: null,
@@ -151,6 +117,7 @@ export const useMotusStore = create<MotusState>((set, get) => ({
   todayCalories: 0,
   todayUnlocks: 0,
   activityLogs: [],
+  weeklyCalories: [],
   
   setExercise: (exercise) => {
     set({ selectedExercise: exercise });
@@ -167,27 +134,9 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     SecureStore.setItemAsync('motus_strict_mode', enabled ? 'true' : 'false');
   },
 
-  setDailyReminderEnabled: async (enabled) => {
-    set({ dailyReminderEnabled: enabled });
-    await SecureStore.setItemAsync('motus_daily_reminder_enabled', enabled ? 'true' : 'false');
-    if (enabled) {
-      await scheduleDailyReminder(get().dailyReminderTime);
-    } else {
-      await cancelDailyReminder();
-    }
-  },
-
-  setDailyReminderTime: async (time) => {
-    set({ dailyReminderTime: time });
-    await SecureStore.setItemAsync('motus_daily_reminder_time', time);
-    if (get().dailyReminderEnabled) {
-      await scheduleDailyReminder(time);
-    }
-  },
-
-  setPreLockWarningEnabled: (enabled) => {
-    set({ preLockWarningEnabled: enabled });
-    SecureStore.setItemAsync('motus_pre_lock_warning_enabled', enabled ? 'true' : 'false');
+  setAppRelockAlertEnabled: (enabled) => {
+    set({ appRelockAlertEnabled: enabled });
+    SecureStore.setItemAsync('motus_app_relock_alert_enabled', enabled ? 'true' : 'false');
   },
 
   setLockExpiration: (timestamp) => {
@@ -334,10 +283,16 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       todayReps: 0, 
       todayCalories: 0, 
       todayUnlocks: 0, 
-      activityLogs: [] 
+      activityLogs: [],
+      weeklyCalories: []
     });
     await SecureStore.deleteItemAsync('motus_token');
     await SecureStore.deleteItemAsync('motus_user');
+    await SecureStore.deleteItemAsync('motus_today_reps');
+    await SecureStore.deleteItemAsync('motus_today_calories');
+    await SecureStore.deleteItemAsync('motus_today_unlocks');
+    await SecureStore.deleteItemAsync('motus_activity_logs');
+    await SecureStore.deleteItemAsync('motus_weekly_calories');
   },
 
   clearAuthError: () => {
@@ -347,17 +302,110 @@ export const useMotusStore = create<MotusState>((set, get) => ({
   // Workout Actions
   logWorkoutSession: async (exercise, reps) => {
     const { token, getEarnedMinutes } = get();
-    if (!token) return;
     
+    // 1. Calculate stats and perform local optimistic update
+    const minutes = getEarnedMinutes();
+    let unlockedApp: string | null = null;
     try {
-      const minutes = getEarnedMinutes();
+      unlockedApp = await MotusScreenTime.getPendingUnlockAppName();
+    } catch (e) {
+      console.log('Failed to get pending unlock app name', e);
+    }
+
+    const caloriesBurned = Math.round(reps * 0.4);
+    
+    const newLog: ActivityLog = {
+      id: `local-${Date.now()}`,
+      exercise,
+      reps,
+      calories: caloriesBurned,
+      minutes,
+      unlockedApp,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedTodayReps = get().todayReps + reps;
+    const updatedTodayCalories = get().todayCalories + caloriesBurned;
+    const updatedTodayUnlocks = get().todayUnlocks + (unlockedApp ? 1 : 0);
+    const updatedLogs = [newLog, ...get().activityLogs];
+
+    // Pre-populate weekly calories array structure if empty/invalid to ensure immediate local update
+    let updatedWeekly = [...get().weeklyCalories];
+    if (updatedWeekly.length !== 3) {
+      const currentMonday = new Date();
+      const day = currentMonday.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      currentMonday.setDate(currentMonday.getDate() - diff);
+      currentMonday.setHours(0, 0, 0, 0);
+
+      const weeks = [];
+      for (let w = 2; w >= 0; w--) {
+        const weekMonday = new Date(currentMonday);
+        weekMonday.setDate(currentMonday.getDate() - (w * 7));
+        
+        const weekDays = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(weekMonday);
+          d.setDate(weekMonday.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+          weekDays.push({
+            date: dateStr,
+            dayLabel: dayLabel,
+            calories: 0,
+          });
+        }
+        weeks.push(weekDays);
+      }
+      updatedWeekly = weeks;
+    }
+
+    // Add calories to the today's date slot in the weekly data structure
+    if (updatedWeekly.length > 0) {
+      const currentWeekIndex = updatedWeekly.length - 1;
+      const currentWeek = [...updatedWeekly[currentWeekIndex]];
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      const dayIndex = currentWeek.findIndex(d => d.date === todayDateStr);
+      if (dayIndex !== -1) {
+        currentWeek[dayIndex] = {
+          ...currentWeek[dayIndex],
+          calories: currentWeek[dayIndex].calories + caloriesBurned
+        };
+        updatedWeekly[currentWeekIndex] = currentWeek;
+      }
+    }
+
+    // Set local state
+    set({
+      todayReps: updatedTodayReps,
+      todayCalories: updatedTodayCalories,
+      todayUnlocks: updatedTodayUnlocks,
+      activityLogs: updatedLogs,
+      weeklyCalories: updatedWeekly,
+    });
+
+    // Persist local state to SecureStore
+    try {
+      await SecureStore.setItemAsync('motus_today_reps', updatedTodayReps.toString());
+      await SecureStore.setItemAsync('motus_today_calories', updatedTodayCalories.toString());
+      await SecureStore.setItemAsync('motus_today_unlocks', updatedTodayUnlocks.toString());
+      await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(updatedLogs));
+      await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(updatedWeekly));
+    } catch (e) {
+      console.log('Failed to save optimistic stats to SecureStore', e);
+    }
+
+    // 2. Sync with API if user is authenticated
+    if (!token) return;
+
+    try {
       const response = await fetch(`${API_BASE_URL}/api/workouts`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ exercise, reps, minutes }),
+        body: JSON.stringify({ exercise, reps, minutes, unlockedApp }),
       });
       if (response.ok) {
         await get().fetchStatsAndActivity();
@@ -383,7 +431,13 @@ export const useMotusStore = create<MotusState>((set, get) => ({
           todayCalories: data.today.calories,
           todayUnlocks: data.today.unlocks,
           activityLogs: data.activityLogs,
+          weeklyCalories: data.weeklyCalories || [],
         });
+        await SecureStore.setItemAsync('motus_today_reps', data.today.reps.toString());
+        await SecureStore.setItemAsync('motus_today_calories', data.today.calories.toString());
+        await SecureStore.setItemAsync('motus_today_unlocks', data.today.unlocks.toString());
+        await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(data.activityLogs));
+        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
       }
     } catch (e) {
       console.log('Failed to fetch stats from api', e);
@@ -397,24 +451,49 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       const exp = await SecureStore.getItemAsync('motus_expiration');
       const strict = await SecureStore.getItemAsync('motus_strict_mode');
       
-      const dailyReminderVal = await SecureStore.getItemAsync('motus_daily_reminder_enabled');
-      const dailyReminderTimeVal = await SecureStore.getItemAsync('motus_daily_reminder_time');
-      const preLockWarningVal = await SecureStore.getItemAsync('motus_pre_lock_warning_enabled');
+      const appRelockAlertVal = await SecureStore.getItemAsync('motus_app_relock_alert_enabled');
       
       const token = await SecureStore.getItemAsync('motus_token');
       const userStr = await SecureStore.getItemAsync('motus_user');
       const user = userStr ? JSON.parse(userStr) : null;
       
+      const todayRepsStr = await SecureStore.getItemAsync('motus_today_reps');
+      const todayCaloriesStr = await SecureStore.getItemAsync('motus_today_calories');
+      const todayUnlocksStr = await SecureStore.getItemAsync('motus_today_unlocks');
+      const activityLogsStr = await SecureStore.getItemAsync('motus_activity_logs');
+      const weeklyCaloriesStr = await SecureStore.getItemAsync('motus_weekly_calories');
+      
+      let parsedLogs: ActivityLog[] = [];
+      if (activityLogsStr) {
+        try {
+          parsedLogs = JSON.parse(activityLogsStr);
+        } catch (e) {
+          console.log('Failed to parse cached activity logs', e);
+        }
+      }
+
+      let parsedWeekly: { dayLabel: string; calories: number; date: string }[][] = [];
+      if (weeklyCaloriesStr) {
+        try {
+          parsedWeekly = JSON.parse(weeklyCaloriesStr);
+        } catch (e) {
+          console.log('Failed to parse cached weekly calories', e);
+        }
+      }
+
       set({
         selectedExercise: exercise || 'pushups',
         repCount: count ? parseInt(count, 10) : 10,
         strictMode: strict === 'true',
         lockExpirationTime: exp ? parseInt(exp, 10) : null,
-        dailyReminderEnabled: dailyReminderVal === 'true',
-        dailyReminderTime: dailyReminderTimeVal || '08:00',
-        preLockWarningEnabled: preLockWarningVal !== 'false', // Default to true if not set
+        appRelockAlertEnabled: appRelockAlertVal !== 'false', // Default to true if not set
         token,
         user,
+        todayReps: todayRepsStr ? parseInt(todayRepsStr, 10) : 0,
+        todayCalories: todayCaloriesStr ? parseInt(todayCaloriesStr, 10) : 0,
+        todayUnlocks: todayUnlocksStr ? parseInt(todayUnlocksStr, 10) : 0,
+        activityLogs: parsedLogs,
+        weeklyCalories: parsedWeekly,
       });
 
       if (token) {

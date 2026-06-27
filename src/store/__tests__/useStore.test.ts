@@ -273,6 +273,9 @@ describe('useMotusStore Store Unit Tests', () => {
       token: 'jwt-token',
       user: { name: 'K', email: 'k@k.com', proMember: true },
       todayReps: 10,
+      todayCalories: 15,
+      todayUnlocks: 1,
+      activityLogs: [{ id: '1', exercise: 'pushups', reps: 10, timestamp: '2026-06-25T15:00:00Z' }],
     });
 
     await useMotusStore.getState().signOut();
@@ -281,8 +284,15 @@ describe('useMotusStore Store Unit Tests', () => {
     expect(state.token).toBeNull();
     expect(state.user).toBeNull();
     expect(state.todayReps).toBe(0);
+    expect(state.todayCalories).toBe(0);
+    expect(state.todayUnlocks).toBe(0);
+    expect(state.activityLogs).toHaveLength(0);
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_token');
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_user');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_today_reps');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_today_calories');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_today_unlocks');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('motus_activity_logs');
   });
 
   it('should clear auth errors', () => {
@@ -326,6 +336,7 @@ describe('useMotusStore Store Unit Tests', () => {
     useMotusStore.setState({ token: 'jwt-token' });
     const statsRes = {
       today: { reps: 100, calories: 120, unlocks: 4 },
+      weeklyCalories: [[{ date: '2026-06-25', dayLabel: 'T', calories: 10 }]],
       activityLogs: [{ id: '1', exercise: 'pushups', reps: 10, timestamp: '2026-06-25T15:00:00Z' }]
     };
     global.fetch = mockFetchResponse(true, 200, statsRes);
@@ -337,6 +348,12 @@ describe('useMotusStore Store Unit Tests', () => {
     expect(state.todayCalories).toBe(120);
     expect(state.todayUnlocks).toBe(4);
     expect(state.activityLogs).toHaveLength(1);
+    expect(state.weeklyCalories).toEqual(statsRes.weeklyCalories);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_today_reps', '100');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_today_calories', '120');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_today_unlocks', '4');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_activity_logs', JSON.stringify(statsRes.activityLogs));
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_weekly_calories', JSON.stringify(statsRes.weeklyCalories));
   });
 
   it('should reject fetch stats if no token is present', async () => {
@@ -357,20 +374,23 @@ describe('useMotusStore Store Unit Tests', () => {
   // Load State
   it('should load initial configurations, token, user profile, and active lock count', async () => {
     const mockUser = { name: 'Test User', email: 't@t.com', proMember: true };
+    const mockLogs = [{ id: '1', exercise: 'pushups', reps: 10, timestamp: '2026-06-25T15:00:00Z' }];
+    const mockWeekly = [[{ date: '2026-06-25', dayLabel: 'T', calories: 10 }]];
     (SecureStore.getItemAsync as jest.Mock)
       .mockImplementation((key) => {
         if (key === 'motus_exercise') return Promise.resolve('pullups');
         if (key === 'motus_reps') return Promise.resolve('20');
         if (key === 'motus_strict_mode') return Promise.resolve('true');
         if (key === 'motus_expiration') return Promise.resolve('1782417756124');
-        if (key === 'motus_token') return Promise.resolve('jwt-token-loaded');
+        if (key === 'motus_token') return Promise.resolve(null);
         if (key === 'motus_user') return Promise.resolve(JSON.stringify(mockUser));
+        if (key === 'motus_today_reps') return Promise.resolve('45');
+        if (key === 'motus_today_calories') return Promise.resolve('54');
+        if (key === 'motus_today_unlocks') return Promise.resolve('2');
+        if (key === 'motus_activity_logs') return Promise.resolve(JSON.stringify(mockLogs));
+        if (key === 'motus_weekly_calories') return Promise.resolve(JSON.stringify(mockWeekly));
         return Promise.resolve(null);
       });
-
-    // Mock stats fetching on successful token load
-    const statsRes = { today: { reps: 5, calories: 10, unlocks: 1 }, activityLogs: [] };
-    global.fetch = mockFetchResponse(true, 200, statsRes);
 
     await useMotusStore.getState().loadState();
 
@@ -379,8 +399,13 @@ describe('useMotusStore Store Unit Tests', () => {
     expect(state.repCount).toBe(20);
     expect(state.strictMode).toBe(true);
     expect(state.lockExpirationTime).toBe(1782417756124);
-    expect(state.token).toBe('jwt-token-loaded');
+    expect(state.token).toBeNull();
     expect(state.user).toEqual(mockUser);
+    expect(state.todayReps).toBe(45);
+    expect(state.todayCalories).toBe(54);
+    expect(state.todayUnlocks).toBe(2);
+    expect(state.activityLogs).toEqual(mockLogs);
+    expect(state.weeklyCalories).toEqual(mockWeekly);
   });
 
   it('should handle loadState exceptions and set defaults', async () => {

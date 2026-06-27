@@ -50,14 +50,8 @@ export default function SettingsScreen() {
     user,
     signOut,
     updateProfileName,
-    todayReps,
-    todayUnlocks,
-    dailyReminderEnabled,
-    dailyReminderTime,
-    preLockWarningEnabled,
-    setDailyReminderEnabled,
-    setDailyReminderTime,
-    setPreLockWarningEnabled,
+    appRelockAlertEnabled,
+    setAppRelockAlertEnabled,
   } = useMotusStore();
   
   // Local state
@@ -66,44 +60,20 @@ export default function SettingsScreen() {
   const [newName, setNewName] = useState(user?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
   
-  // Custom Time Picker Modal State
-  const [isTimeModalVisible, setTimeModalVisible] = useState(false);
-  const [pickerHours, setPickerHours] = useState(8);
-  const [pickerMinutes, setPickerMinutes] = useState(0);
+  // Training Mode Modal State
+  const [isTrainingModalVisible, setTrainingModalVisible] = useState(false);
 
-  // Initialize time picker values from store
-  useEffect(() => {
-    if (dailyReminderTime) {
-      const [h, m] = dailyReminderTime.split(':').map(Number);
-      setPickerHours(isNaN(h) ? 8 : h);
-      setPickerMinutes(isNaN(m) ? 0 : m);
-    }
-  }, [dailyReminderTime, isTimeModalVisible]);
+  // Training Mode Modal dimensions
+  const modalWidth = width * 0.88;
 
-  // Reanimated slider for exercise selector
-  const selectedIndex = EXERCISES.findIndex(ex => ex.id === selectedExercise);
-  const tabWidth = (width - 48 - 12) / 3; // accounting for padding and gap
-  const sliderTranslateX = useSharedValue(selectedIndex * tabWidth);
-
-  useEffect(() => {
-    sliderTranslateX.value = withSpring(selectedIndex * tabWidth, { 
-      damping: 24, 
-      stiffness: 140 
-    });
-  }, [selectedIndex]);
-
-  const sliderAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: sliderTranslateX.value }],
-  }));
-
-  // Reanimated button scale taps
+  // Reanimated button scale taps inside training modal
   const minusScale = useSharedValue(1);
   const plusScale = useSharedValue(1);
 
   const minusAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: minusScale.value }] }));
   const plusAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: plusScale.value }] }));
 
-  // Animated pulse dot for Training Mode
+  // Animated pulse dot for Training Mode Card
   const pulseValue = useSharedValue(1);
   useEffect(() => {
     pulseValue.value = withRepeat(
@@ -151,192 +121,84 @@ export default function SettingsScreen() {
     }
   };
 
-  const saveReminderTime = async () => {
-    const formattedHours = pickerHours.toString().padStart(2, '0');
-    const formattedMinutes = pickerMinutes.toString().padStart(2, '0');
-    const timeStr = `${formattedHours}:${formattedMinutes}`;
-    await setDailyReminderTime(timeStr);
-    setTimeModalVisible(false);
-  };
-
-  const incrementHour = () => setPickerHours(h => (h + 1) % 24);
-  const decrementHour = () => setPickerHours(h => (h - 1 + 24) % 24);
-  const incrementMinute = () => setPickerMinutes(m => (m + 5) % 60);
-  const decrementMinute = () => setPickerMinutes(m => (m - 5 + 60) % 60);
-
   const calculatedMinutes = repCount * (EXERCISE_MULTIPLIERS[selectedExercise] || 1);
 
   return (
     <View style={styles.container}>
-      {/* Background Ambient Glow */}
-      <View style={styles.ambientGlowContainer} pointerEvents="none">
-        <LinearGradient
-          colors={['rgba(57, 255, 20, 0.05)', 'transparent']}
-          style={styles.topAmbientGlow}
-        />
-      </View>
+      {/* Background Ambient Glows - Matching Dashboard */}
+      <View style={styles.ambientGlowGreen} />
+      <View style={styles.ambientGlowBlue} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Header Title */}
-        <Text style={styles.header}>Settings</Text>
+        {/* Header - Matching Dashboard */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.dateText}>CONFIG & PREFERENCES</Text>
+          <Text style={styles.header}>Settings</Text>
+        </View>
 
-        {/* Premium Profile Card */}
-        <LinearGradient
-          colors={['#1c1c1e', '#0f1c11']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.profileCard}
-        >
-          <View style={styles.profileHeaderRow}>
-            <View style={styles.profileAvatarWrapper}>
-              <LinearGradient
-                colors={['#39FF14', '#007AFF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.avatarGlowBorder}
-              >
-                <View style={styles.avatarInner}>
-                  <SymbolView name="person.fill" size={32} tintColor="#FFFFFF" fallback={<View />} />
-                </View>
-              </LinearGradient>
-            </View>
-            
-            <View style={styles.profileTextInfo}>
-              <View style={styles.profileNameRow}>
-                <Text style={styles.profileName} numberOfLines={1}>{user?.name || 'Guest User'}</Text>
-                <TouchableOpacity 
-                  style={styles.editProfileIcon}
-                  onPress={() => {
-                    setNewName(user?.name || '');
-                    setEditModalVisible(true);
-                  }}
-                >
-                  <SymbolView name="pencil.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>Edit</Text>} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.profileEmail} numberOfLines={1}>{user?.email || 'guest@motus.fit'}</Text>
-              
-              <View style={styles.proBadgeContainer}>
+        {/* Profile Card (Simplified - No stats) - Matching Dashboard Hero style */}
+        <View style={styles.heroWrapper}>
+          <BlurView intensity={30} style={styles.profileCard} tint="dark">
+            <View style={styles.profileHeaderRow}>
+              <View style={styles.profileAvatarWrapper}>
                 <LinearGradient
-                  colors={['#39FF14', '#15cc00']}
-                  style={styles.proBadge}
+                  colors={['#39FF14', '#007AFF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.avatarGlowBorder}
                 >
-                  <SymbolView name="star.fill" size={9} tintColor="#000000" fallback={<View />} />
-                  <Text style={styles.proBadgeText}>PRO</Text>
+                  <View style={styles.avatarInner}>
+                    <SymbolView name="person.fill" size={32} tintColor="#FFFFFF" fallback={<View />} />
+                  </View>
                 </LinearGradient>
               </View>
+              
+              <View style={styles.profileTextInfo}>
+                <View style={styles.profileNameRow}>
+                  <Text style={styles.profileName} numberOfLines={1}>{user?.name || 'Guest User'}</Text>
+                  <TouchableOpacity 
+                    style={styles.editProfileIcon}
+                    onPress={() => {
+                      setNewName(user?.name || '');
+                      setEditModalVisible(true);
+                    }}
+                  >
+                    <SymbolView name="pencil.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>Edit</Text>} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.profileEmail} numberOfLines={1}>{user?.email || 'guest@motus.fit'}</Text>
+                
+                <View style={styles.proBadgeContainer}>
+                  <LinearGradient
+                    colors={['#39FF14', '#15cc00']}
+                    style={styles.proBadge}
+                  >
+                    <SymbolView name="star.fill" size={9} tintColor="#000000" fallback={<View />} />
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </LinearGradient>
+                </View>
+              </View>
             </View>
-          </View>
-
-          {/* Inline Stats Dashboard */}
-          <View style={styles.profileStatsDivider} />
-          <View style={styles.profileStatsRow}>
-            <View style={styles.profileStatItem}>
-              <Text style={styles.profileStatValue}>{todayReps}</Text>
-              <Text style={styles.profileStatLabel}>Reps Today</Text>
-            </View>
-            <View style={styles.profileStatBorder} />
-            <View style={styles.profileStatItem}>
-              <Text style={styles.profileStatValue}>{todayUnlocks}</Text>
-              <Text style={styles.profileStatLabel}>Unlocks</Text>
-            </View>
-            <View style={styles.profileStatBorder} />
-            <View style={styles.profileStatItem}>
-              <Text style={styles.profileStatValue}>{calculatedMinutes}m</Text>
-              <Text style={styles.profileStatLabel}>Target Time</Text>
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* Challenge Configuration Title */}
-        <Text style={styles.sectionTitle}>Challenge Mechanism</Text>
-
-        {/* Premium Segmented Exercise Selector */}
-        <View style={styles.exerciseSegmentContainer}>
-          <Animated.View style={[styles.exerciseSliderBg, sliderAnimatedStyle, { width: tabWidth }]} />
-          {EXERCISES.map((ex) => {
-            const isSelected = selectedExercise === ex.id;
-            return (
-              <TouchableOpacity 
-                key={ex.id} 
-                activeOpacity={0.8}
-                style={[styles.exerciseSegmentTab, { width: tabWidth }]}
-                onPress={() => setExercise(ex.id)}
-              >
-                <Image 
-                  source={ex.image} 
-                  style={[styles.exerciseSegmentIcon, isSelected ? styles.exerciseIconSelected : styles.exerciseIconDimmed]} 
-                  resizeMode="contain"
-                />
-                <Text style={[styles.exerciseSegmentLabel, isSelected && styles.exerciseLabelSelected]}>
-                  {ex.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          </BlurView>
         </View>
 
-        {/* Premium Required Reps Slider widget */}
-        <View style={styles.premiumRepsCard}>
-          <View style={styles.repsCardHeader}>
-            <Text style={styles.repsCardTitle}>REQUIRED REPS</Text>
-            <Text style={styles.repsMultiplierText}>1 rep = {EXERCISE_MULTIPLIERS[selectedExercise] || 1} min screen time</Text>
+        {/* Practice Mode Header */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Training & Practice</Text>
+            <Text style={styles.sectionSubtitle}>Test your body form and setup angles</Text>
           </View>
-          
-          <View style={styles.repsControlRow}>
-            <Animated.View style={minusAnimatedStyle}>
-              <TouchableOpacity 
-                style={styles.repsAdjustBtn} 
-                activeOpacity={0.6}
-                onPressIn={() => { minusScale.value = withTiming(0.85, { duration: 100 }); }}
-                onPressOut={() => { minusScale.value = withSpring(1); }}
-                onPress={() => setRepCount(Math.max(1, repCount - 1))}
-              >
-                <SymbolView name="minus" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>-</Text>} />
-              </TouchableOpacity>
-            </Animated.View>
-            
-            <View style={styles.repsDisplayContainer}>
-              <Text style={styles.repsValueText}>{repCount}</Text>
-              <Text style={styles.repsValueLabel}>repetitions</Text>
-            </View>
-
-            <Animated.View style={plusAnimatedStyle}>
-              <TouchableOpacity 
-                style={styles.repsAdjustBtn} 
-                activeOpacity={0.6}
-                onPressIn={() => { plusScale.value = withTiming(0.85, { duration: 100 }); }}
-                onPressOut={() => { plusScale.value = withSpring(1); }}
-                onPress={() => setRepCount(repCount + 1)}
-              >
-                <SymbolView name="plus" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>+</Text>} />
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-
-          {/* Converted Output Badge */}
-          <LinearGradient
-            colors={['rgba(57, 255, 20, 0.08)', 'rgba(57, 255, 20, 0.02)']}
-            style={styles.timeUnlockIndicator}
-          >
-            <SymbolView name="hourglass.badge.plus" size={14} tintColor="#39FF14" fallback={<View />} />
-            <Text style={styles.timeUnlockText}>
-              Unlocks <Text style={styles.timeUnlockBoldText}>{calculatedMinutes} minutes</Text> of screen time
-            </Text>
-          </LinearGradient>
+          <SymbolView name="figure.cooldown" size={20} tintColor="#39FF14" />
         </View>
 
-        {/* Premium Training/Positioning Card */}
+        {/* Premium Training/Positioning Card - Tapping opens configuration modal */}
         <TouchableOpacity 
           style={styles.trainingPremiumCard} 
           activeOpacity={0.9} 
-          onPress={() => router.push('/camera')}
+          onPress={() => setTrainingModalVisible(true)}
         >
-          <LinearGradient
-            colors={['rgba(28, 28, 30, 0.95)', 'rgba(18, 28, 19, 0.95)']}
-            style={styles.trainingCardGradient}
-          >
+          <BlurView intensity={30} style={styles.trainingCardGradient} tint="dark">
             <View style={styles.trainingLeftCol}>
               <View style={styles.trainingIconOuter}>
                 <SymbolView name="camera.viewfinder" size={26} tintColor="#39FF14" fallback={<View />} />
@@ -355,12 +217,19 @@ export default function SettingsScreen() {
             </View>
             
             <SymbolView name="chevron.right" size={16} tintColor="#8E8E93" fallback={<Text style={{color: '#8e8e93'}}>&gt;</Text>} />
-          </LinearGradient>
+          </BlurView>
         </TouchableOpacity>
 
-        {/* App Preferences */}
-        <Text style={styles.sectionTitle}>App Preferences</Text>
-        <BlurView intensity={15} tint="dark" style={styles.settingsBlurBlock}>
+        {/* App Preferences Section Header */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>App Preferences</Text>
+            <Text style={styles.sectionSubtitle}>Fine-tune your workout tracking rules</Text>
+          </View>
+          <SymbolView name="gearshape.fill" size={20} tintColor="#007AFF" />
+        </View>
+
+        <BlurView intensity={20} tint="dark" style={styles.settingsBlurBlock}>
           {/* Strict Form toggle */}
           <View style={styles.prefRow}>
             <View style={styles.prefLeft}>
@@ -402,79 +271,46 @@ export default function SettingsScreen() {
           </View>
         </BlurView>
 
-        {/* Notifications & Reminders Section */}
-        <Text style={styles.sectionTitle}>Notifications & Reminders</Text>
-        <BlurView intensity={15} tint="dark" style={styles.settingsBlurBlock}>
-          {/* Daily reminder toggle */}
+        {/* Notifications & Reminders Section Header */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Notifications & Reminders</Text>
+            <Text style={styles.sectionSubtitle}>Get alert warnings and system statuses</Text>
+          </View>
+          <SymbolView name="bell.fill" size={20} tintColor="#FF9500" />
+        </View>
+
+        <BlurView intensity={20} tint="dark" style={styles.settingsBlurBlock}>
+          {/* App Relocked Alert Toggle */}
           <View style={styles.prefRow}>
             <View style={styles.prefLeft}>
               <View style={[styles.prefIconContainer, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
-                <SymbolView name="bell.fill" size={18} tintColor="#FF9500" fallback={<View />} />
+                <SymbolView name="lock.fill" size={18} tintColor="#FF9500" fallback={<View />} />
               </View>
               <View style={styles.prefTextContainer}>
-                <Text style={styles.prefTitle}>Daily Workout Reminder</Text>
-                <Text style={styles.prefDesc}>Reminds you to unlock your screen time.</Text>
+                <Text style={styles.prefTitle}>App Relocked Alerts</Text>
+                <Text style={styles.prefDesc}>Get notified when screen time ends and apps relock.</Text>
               </View>
             </View>
             <Switch 
-              value={dailyReminderEnabled} 
-              onValueChange={setDailyReminderEnabled} 
-              trackColor={{ false: '#3a3a3c', true: '#39FF14' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          {/* Reminder Time selector (Only visible if enabled) */}
-          {dailyReminderEnabled && (
-            <>
-              <View style={styles.separatorLine} />
-              <TouchableOpacity 
-                style={styles.prefRowClickable} 
-                activeOpacity={0.7}
-                onPress={() => setTimeModalVisible(true)}
-              >
-                <View style={styles.prefLeft}>
-                  <View style={[styles.prefIconContainer, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
-                    <SymbolView name="clock.fill" size={18} tintColor="#FF9500" fallback={<View />} />
-                  </View>
-                  <View style={styles.prefTextContainer}>
-                    <Text style={styles.prefTitle}>Reminder Time</Text>
-                    <Text style={styles.prefDesc}>Select when to be nudged daily.</Text>
-                  </View>
-                </View>
-                <View style={styles.timeSelectorValueBadge}>
-                  <Text style={styles.timeSelectorValueText}>{dailyReminderTime}</Text>
-                  <SymbolView name="chevron.right" size={14} tintColor="#8E8E93" fallback={<Text style={{color: '#666'}}>&gt;</Text>} />
-                </View>
-              </TouchableOpacity>
-            </>
-          )}
-
-          <View style={styles.separatorLine} />
-
-          {/* Pre-Lock Warning Toggle */}
-          <View style={styles.prefRow}>
-            <View style={styles.prefLeft}>
-              <View style={[styles.prefIconContainer, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
-                <SymbolView name="timer" size={18} tintColor="#FF3B30" fallback={<View />} />
-              </View>
-              <View style={styles.prefTextContainer}>
-                <Text style={styles.prefTitle}>Pre-Lock Warning</Text>
-                <Text style={styles.prefDesc}>Alerts 5m before screen time ends.</Text>
-              </View>
-            </View>
-            <Switch 
-              value={preLockWarningEnabled} 
-              onValueChange={setPreLockWarningEnabled} 
+              value={appRelockAlertEnabled} 
+              onValueChange={setAppRelockAlertEnabled} 
               trackColor={{ false: '#3a3a3c', true: '#39FF14' }}
               thumbColor="#FFFFFF"
             />
           </View>
         </BlurView>
 
-        {/* Support & Legal */}
-        <Text style={styles.sectionTitle}>Support & About</Text>
-        <BlurView intensity={15} tint="dark" style={styles.settingsBlurBlock}>
+        {/* Support & Legal Section Header */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Support & About</Text>
+            <Text style={styles.sectionSubtitle}>Need help or want to read legal info?</Text>
+          </View>
+          <SymbolView name="questionmark.circle.fill" size={20} tintColor="#8E8E93" />
+        </View>
+
+        <BlurView intensity={20} tint="dark" style={styles.settingsBlurBlock}>
           <TouchableOpacity style={styles.supportRow} activeOpacity={0.7}>
             <View style={styles.prefLeft}>
               <View style={styles.supportIconContainer}>
@@ -571,61 +407,106 @@ export default function SettingsScreen() {
         </BlurView>
       </Modal>
 
-      {/* Custom Time Picker Modal */}
+      {/* Custom Training Configuration Pop-up Modal */}
       <Modal
         animationType="slide"
         transparent={true}
-        visible={isTimeModalVisible}
-        onRequestClose={() => setTimeModalVisible(false)}
+        visible={isTrainingModalVisible}
+        onRequestClose={() => setTrainingModalVisible(false)}
       >
-        <BlurView intensity={75} tint="dark" style={styles.modalBackground}>
-          <View style={styles.timeModalContainer}>
-            <Text style={styles.timeModalTitle}>Daily Reminder Time</Text>
-            <Text style={styles.timeModalSubtitle}>Set a consistent target reminder</Text>
+        <BlurView intensity={80} tint="dark" style={styles.modalBackground}>
+          <View style={[styles.timeModalContainer, { width: modalWidth }]}>
+            <Text style={styles.timeModalTitle}>Practice Configuration</Text>
+            <Text style={styles.timeModalSubtitle}>Set up your exercise type and reps</Text>
 
-            {/* Custom Hour/Minute Adjuster */}
-            <View style={styles.timeAdjusterContainer}>
-              {/* Hour Column */}
-              <View style={styles.timeAdjusterCol}>
-                <TouchableOpacity style={styles.timeArrowBtn} onPress={incrementHour}>
-                  <SymbolView name="chevron.up" size={24} tintColor="#39FF14" fallback={<Text style={{color: 'white'}}>^</Text>} />
-                </TouchableOpacity>
-                <Text style={styles.timeAdjusterValue}>{pickerHours.toString().padStart(2, '0')}</Text>
-                <TouchableOpacity style={styles.timeArrowBtn} onPress={decrementHour}>
-                  <SymbolView name="chevron.down" size={24} tintColor="#39FF14" fallback={<Text style={{color: 'white'}}>v</Text>} />
-                </TouchableOpacity>
-                <Text style={styles.timeAdjusterLabel}>hours</Text>
+            {/* Exercise Selector inside popup (Grid of 6 items) */}
+            <View style={[styles.exerciseGrid, { width: modalWidth - 48, marginBottom: 20 }]}>
+              {EXERCISES.map((ex) => {
+                const isSelected = selectedExercise === ex.id;
+                return (
+                  <TouchableOpacity 
+                    key={ex.id} 
+                    activeOpacity={0.8}
+                    style={[styles.exerciseGridItem, isSelected && styles.exerciseGridItemActive]}
+                    onPress={() => setExercise(ex.id)}
+                  >
+                    <Image 
+                      source={ex.image} 
+                      style={[styles.exerciseGridIcon, isSelected ? styles.exerciseIconSelected : styles.exerciseIconDimmed]} 
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.exerciseGridLabel, isSelected && styles.exerciseLabelSelected]}>
+                      {ex.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Required Reps Widget inside popup */}
+            <View style={[styles.premiumRepsCard, { width: modalWidth - 48, marginBottom: 24, backgroundColor: 'rgba(255,255,255,0.02)' }]}>
+              <View style={styles.repsCardHeader}>
+                <Text style={styles.repsCardTitle}>REQUIRED REPS</Text>
+                <Text style={styles.repsMultiplierText}>1 rep = {EXERCISE_MULTIPLIERS[selectedExercise] || 1}m screen time</Text>
+              </View>
+              
+              <View style={styles.repsControlRow}>
+                <Animated.View style={minusAnimatedStyle}>
+                  <TouchableOpacity 
+                    style={styles.repsAdjustBtn} 
+                    activeOpacity={0.6}
+                    onPressIn={() => { minusScale.value = withTiming(0.85, { duration: 100 }); }}
+                    onPressOut={() => { minusScale.value = withSpring(1); }}
+                    onPress={() => setRepCount(Math.max(1, repCount - 1))}
+                  >
+                    <SymbolView name="minus" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>-</Text>} />
+                  </TouchableOpacity>
+                </Animated.View>
+                
+                <View style={styles.repsDisplayContainer}>
+                  <Text style={styles.repsValueText}>{repCount}</Text>
+                  <Text style={styles.repsValueLabel}>repetitions</Text>
+                </View>
+
+                <Animated.View style={plusAnimatedStyle}>
+                  <TouchableOpacity 
+                    style={styles.repsAdjustBtn} 
+                    activeOpacity={0.6}
+                    onPressIn={() => { plusScale.value = withTiming(0.85, { duration: 100 }); }}
+                    onPressOut={() => { plusScale.value = withSpring(1); }}
+                    onPress={() => setRepCount(repCount + 1)}
+                  >
+                    <SymbolView name="plus" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>+</Text>} />
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
 
-              {/* Time separator */}
-              <Text style={styles.timeAdjusterSeparator}>:</Text>
-
-              {/* Minute Column */}
-              <View style={styles.timeAdjusterCol}>
-                <TouchableOpacity style={styles.timeArrowBtn} onPress={incrementMinute}>
-                  <SymbolView name="chevron.up" size={24} tintColor="#39FF14" fallback={<Text style={{color: 'white'}}>^</Text>} />
-                </TouchableOpacity>
-                <Text style={styles.timeAdjusterValue}>{pickerMinutes.toString().padStart(2, '0')}</Text>
-                <TouchableOpacity style={styles.timeArrowBtn} onPress={decrementMinute}>
-                  <SymbolView name="chevron.down" size={24} tintColor="#39FF14" fallback={<Text style={{color: 'white'}}>v</Text>} />
-                </TouchableOpacity>
-                <Text style={styles.timeAdjusterLabel}>mins</Text>
+              {/* Converted Output badge */}
+              <View style={styles.timeUnlockIndicator}>
+                <SymbolView name="hourglass.badge.plus" size={14} tintColor="#39FF14" fallback={<View />} />
+                <Text style={styles.timeUnlockText}>
+                  Unlocks <Text style={styles.timeUnlockBoldText}>{calculatedMinutes} minutes</Text> of screen time
+                </Text>
               </View>
             </View>
 
+            {/* Modal Buttons Row */}
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity 
                 style={[styles.modalButton as any, styles.modalCancelBtn as any]} 
-                onPress={() => setTimeModalVisible(false)}
+                onPress={() => setTrainingModalVisible(false)}
               >
                 <Text style={styles.modalCancelText as any}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 style={[styles.modalButton as any, styles.modalSaveBtn as any]} 
-                onPress={saveReminderTime}
+                onPress={() => {
+                  setTrainingModalVisible(false);
+                  router.push('/camera');
+                }}
               >
-                <Text style={styles.modalSaveText as any}>Confirm</Text>
+                <Text style={styles.modalSaveText as any}>Start Practice</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -639,46 +520,69 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#000000',
   },
-  ambientGlowContainer: {
+  // Ambient glows matching dashboard (index.tsx)
+  ambientGlowGreen: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 50,
+    left: -120,
+    width: 300,
     height: 300,
+    borderRadius: 150,
+    backgroundColor: '#39FF14',
+    opacity: 0.08,
     zIndex: 0,
   },
-  topAmbientGlow: {
-    width: '100%',
-    height: '100%',
+  ambientGlowBlue: {
+    position: 'absolute',
+    top: 350,
+    right: -120,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: '#007AFF',
+    opacity: 0.06,
+    zIndex: 0,
   },
   content: {
     padding: 24,
     paddingTop: 80,
-    paddingBottom: 120,
+    paddingBottom: 140,
     zIndex: 1,
   },
+  headerContainer: {
+    marginBottom: 32,
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
   header: {
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 24,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
-  // Profile Hero Card Style
-  profileCard: {
-    borderRadius: 28,
-    padding: 24,
-    marginBottom: 36,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    overflow: 'hidden',
-    shadowColor: '#000',
+  // Profile Hero Blur Card Style - Matching Dashboard Hero Card
+  heroWrapper: {
+    marginBottom: 40,
+    borderRadius: 32,
+    shadowColor: '#39FF14',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOpacity: 0.05,
+    shadowRadius: 24,
     elevation: 8,
+  },
+  profileCard: {
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
   },
   profileHeaderRow: {
     flexDirection: 'row',
@@ -724,7 +628,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     fontWeight: '500',
-    marginBottom: 10,
   },
   proBadgeContainer: {
     alignSelf: 'flex-start',
@@ -732,6 +635,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
+    marginTop: 10,
   },
   proBadge: {
     flexDirection: 'row',
@@ -747,81 +651,54 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     letterSpacing: 1.0,
   },
-  profileStatsDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: 20,
-  },
-  profileStatsRow: {
+  // Section Headers - Matching Dashboard section headers
+  sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  profileStatItem: {
-    flex: 1,
     alignItems: 'center',
-  },
-  profileStatValue: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 2,
-    letterSpacing: -0.2,
-  },
-  profileStatLabel: {
-    fontSize: 11,
-    color: '#8E8E93',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  profileStatBorder: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 24,
+    paddingHorizontal: 4,
+    marginTop: 16,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#636366',
-    marginBottom: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 2.0,
-    marginLeft: 4,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
-  // Unified exercise segment styles
-  exerciseSegmentContainer: {
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  // Unified exercise grid styles
+  exerciseGrid: {
     flexDirection: 'row',
-    backgroundColor: '#1c1c1e',
-    borderRadius: 24,
-    padding: 4,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    position: 'relative',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
   },
-  exerciseSliderBg: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    borderRadius: 20,
-    backgroundColor: 'rgba(57, 255, 20, 0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(57, 255, 20, 0.3)',
-  },
-  exerciseSegmentTab: {
-    height: 96,
-    justifyContent: 'center',
+  exerciseGridItem: {
+    width: (width * 0.88 - 48 - 16) / 3, // modalWidth - padding - double gaps
+    borderRadius: 16,
+    paddingVertical: 12,
     alignItems: 'center',
-    zIndex: 2,
-  },
-  exerciseSegmentIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  exerciseGridItemActive: {
+    borderColor: '#39FF14',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(57, 255, 20, 0.08)',
+  },
+  exerciseGridIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    marginBottom: 6,
   },
   exerciseIconDimmed: {
     opacity: 0.35,
@@ -829,22 +706,21 @@ const styles = StyleSheet.create({
   exerciseIconSelected: {
     opacity: 1,
   },
-  exerciseSegmentLabel: {
-    fontSize: 13,
+  exerciseGridLabel: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#8E8E93',
   },
   exerciseLabelSelected: {
     color: '#39FF14',
   },
-  // Premium Reps widget styles
+  // Premium Reps widget styles - Styled like chartCard
   premiumRepsCard: {
-    backgroundColor: '#1c1c1e',
-    borderRadius: 28,
+    borderRadius: 32,
     padding: 24,
-    marginBottom: 28,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
   },
   repsCardHeader: {
     flexDirection: 'row',
@@ -904,6 +780,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(57, 255, 20, 0.15)',
+    backgroundColor: 'rgba(57, 255, 20, 0.04)',
   },
   timeUnlockText: {
     color: '#FFFFFF',
@@ -915,16 +792,16 @@ const styles = StyleSheet.create({
     color: '#39FF14',
     fontWeight: '800',
   },
-  // Premium Training card styles
+  // Premium Training card styles - Styled like timelineCard
   trainingPremiumCard: {
     borderRadius: 28,
     marginBottom: 36,
     borderWidth: 1,
-    borderColor: 'rgba(57, 255, 20, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
     shadowColor: '#39FF14',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 4,
   },
@@ -984,12 +861,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#39FF14',
     zIndex: 1,
   },
-  // Settings group items
+  // Settings group items - Styled like timelineCard
   settingsBlurBlock: {
     borderRadius: 28,
-    backgroundColor: 'rgba(28, 28, 30, 0.4)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 36,
     overflow: 'hidden',
   },
@@ -1034,22 +910,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
     lineHeight: 16,
-  },
-  timeSelectorValueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  timeSelectorValueText: {
-    color: '#FF9500',
-    fontSize: 14,
-    fontWeight: '700',
-    marginRight: 6,
   },
   separatorLine: {
     height: 1,
@@ -1176,9 +1036,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  // Custom Time Picker Modal styles
+  // Custom Time Picker Modal styles (Used as generic config container)
   timeModalContainer: {
-    width: width * 0.85,
     backgroundColor: '#1C1C1E',
     borderRadius: 32,
     padding: 24,
@@ -1189,6 +1048,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 24,
     elevation: 12,
+    alignItems: 'center',
   },
   timeModalTitle: {
     fontSize: 22,
@@ -1203,49 +1063,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 24,
     textAlign: 'center',
-  },
-  timeAdjusterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderRadius: 24,
-    paddingVertical: 20,
-    marginBottom: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.04)',
-  },
-  timeAdjusterCol: {
-    alignItems: 'center',
-    width: 80,
-  },
-  timeArrowBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  timeAdjusterValue: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 10,
-    letterSpacing: -1,
-  },
-  timeAdjusterLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#636366',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  timeAdjusterSeparator: {
-    fontSize: 44,
-    fontWeight: '800',
-    color: '#39FF14',
-    marginHorizontal: 12,
-    marginTop: -28,
   },
 });

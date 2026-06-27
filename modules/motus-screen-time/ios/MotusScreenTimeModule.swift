@@ -83,7 +83,14 @@ public class MotusScreenTimeModule: Module {
             // Fallback if no specific token was found: we do not unblock all to prevent "unlock 1 unlocks all" bug.
             print("No pending unlock token found.")
         }
+        sharedDefaults?.removeObject(forKey: "PendingUnlockApplicationName")
       }
+    }
+
+    AsyncFunction("getPendingUnlockAppName") { (promise: Promise) in
+      let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus")
+      let appName = sharedDefaults?.string(forKey: "PendingUnlockApplicationName")
+      promise.resolve(appName)
     }
 
     AsyncFunction("getActiveLockCount") { (promise: Promise) in
@@ -197,6 +204,31 @@ class LockedAppsModel: ObservableObject {
     saveSelection()
   }
   
+  func startSprint(appToken: ApplicationToken) {
+    let store = ManagedSettingsStore()
+    var currentApps = store.shield.applications ?? []
+    currentApps.remove(appToken)
+    store.shield.applications = currentApps.isEmpty ? nil : currentApps
+    
+    promise.resolve([
+      "action": "sprint",
+      "durationSeconds": 120
+    ])
+  }
+  
+  func startSprint(categoryToken: ActivityCategoryToken) {
+    let store = ManagedSettingsStore()
+    if case .specific(var categories, let except) = store.shield.applicationCategories {
+        categories.remove(categoryToken)
+        store.shield.applicationCategories = categories.isEmpty ? .none : .specific(categories, except: except)
+    }
+    
+    promise.resolve([
+      "action": "sprint",
+      "durationSeconds": 120
+    ])
+  }
+  
   private func saveSelection() {
     do {
       let data = try JSONEncoder().encode(selection)
@@ -216,7 +248,7 @@ struct LockedAppsView: View {
   @Environment(\.presentationMode) var presentationMode
   @ObservedObject var model: LockedAppsModel
   @State private var itemToRemove: Any?
-  @State private var showingAlert = false
+  @State private var showingDialog = false
 
   var body: some View {
     NavigationView {
@@ -231,7 +263,7 @@ struct LockedAppsView: View {
               Spacer()
               Button(action: {
                 itemToRemove = token
-                showingAlert = true
+                showingDialog = true
               }) {
                 Text("Disable")
                   .foregroundColor(.red)
@@ -245,7 +277,7 @@ struct LockedAppsView: View {
               Spacer()
               Button(action: {
                 itemToRemove = token
-                showingAlert = true
+                showingDialog = true
               }) {
                 Text("Disable")
                   .foregroundColor(.red)
@@ -256,22 +288,30 @@ struct LockedAppsView: View {
       }
       .navigationTitle("Locked Apps")
       .navigationBarItems(trailing: Button("Done") {
-        model.promise.resolve()
+        model.promise.resolve(["action": "dismissed"])
         presentationMode.wrappedValue.dismiss()
       })
-      .alert(isPresented: $showingAlert) {
-        Alert(
-          title: Text("Emergency Disable"),
-          message: Text("Are you sure you want to disable the lock for this app?"),
-          primaryButton: .destructive(Text("Disable")) {
-            if let appToken = itemToRemove as? ApplicationToken {
-              model.removeApp(token: appToken)
-            } else if let catToken = itemToRemove as? ActivityCategoryToken {
-              model.removeCategory(token: catToken)
-            }
-          },
-          secondaryButton: .cancel()
-        )
+      .confirmationDialog("Emergency Options", isPresented: $showingDialog, titleVisibility: .visible) {
+        Button("⚡ Emergency 2-Min Sprint") {
+          if let appToken = itemToRemove as? ApplicationToken {
+            model.startSprint(appToken: appToken)
+          } else if let catToken = itemToRemove as? ActivityCategoryToken {
+            model.startSprint(categoryToken: catToken)
+          }
+          presentationMode.wrappedValue.dismiss()
+        }
+        
+        Button("🗑️ Disable Permanently", role: .destructive) {
+          if let appToken = itemToRemove as? ApplicationToken {
+            model.removeApp(token: appToken)
+          } else if let catToken = itemToRemove as? ActivityCategoryToken {
+            model.removeCategory(token: catToken)
+          }
+        }
+        
+        Button("Cancel", role: .cancel) {}
+      } message: {
+        Text("Select how you want to handle this lock. A 2-Minute Sprint will temporarily unlock the app immediately, then re-lock it after 2 minutes.")
       }
     }
   }

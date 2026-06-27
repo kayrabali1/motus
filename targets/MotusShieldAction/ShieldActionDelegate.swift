@@ -32,6 +32,7 @@ class ShieldActionExtension: ShieldActionDelegate {
            let data = try? JSONEncoder().encode(application) {
             sharedDefaults.set(data, forKey: "PendingUnlockApplicationToken")
             sharedDefaults.removeObject(forKey: "PendingUnlockCategoryToken")
+            sharedDefaults.synchronize()
         }
         handleAction(action: action, completionHandler: completionHandler)
     }
@@ -45,6 +46,7 @@ class ShieldActionExtension: ShieldActionDelegate {
            let data = try? JSONEncoder().encode(category) {
             sharedDefaults.set(data, forKey: "PendingUnlockCategoryToken")
             sharedDefaults.removeObject(forKey: "PendingUnlockApplicationToken")
+            sharedDefaults.synchronize()
         }
         handleAction(action: action, completionHandler: completionHandler)
     }
