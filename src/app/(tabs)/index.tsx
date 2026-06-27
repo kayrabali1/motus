@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -312,28 +312,28 @@ export default function DashboardScreen() {
               
               let exerciseName = 'Push-ups';
               let tintColor = '#FF2D55';
-              let iconName = 'figure.strengthtraining.traditional';
+              let exerciseImage = require('../../../assets/images/exercises/pushup.png');
               
               if (log.exercise === 'squats') {
                 exerciseName = 'Air Squats';
                 tintColor = '#39FF14';
-                iconName = 'figure.cooldown';
+                exerciseImage = require('../../../assets/images/exercises/squat.png');
               } else if (log.exercise === 'pullups') {
                 exerciseName = 'Pull-ups';
                 tintColor = '#007AFF';
-                iconName = 'figure.mixed.cardio';
+                exerciseImage = require('../../../assets/images/exercises/pullup.png');
               } else if (log.exercise === 'jumping_jacks') {
                 exerciseName = 'Jumping Jacks';
                 tintColor = '#FF9500';
-                iconName = 'figure.highintensity.intervaltraining';
+                exerciseImage = require('../../../assets/images/exercises/jumping_jacks.png');
               } else if (log.exercise === 'burpees') {
                 exerciseName = 'Burpees';
                 tintColor = '#AF52DE';
-                iconName = 'figure.cross.training';
+                exerciseImage = require('../../../assets/images/exercises/burpees.png');
               } else if (log.exercise === 'high_knees') {
                 exerciseName = 'High Knees';
                 tintColor = '#FFCC00';
-                iconName = 'figure.run';
+                exerciseImage = require('../../../assets/images/exercises/high_knees.png');
               }
 
               const isLast = index === activityLogs.length - 1;
@@ -365,7 +365,11 @@ export default function DashboardScreen() {
 
                     {/* Timeline Node */}
                     <View style={[styles.timelineNode, { borderColor: tintColor, backgroundColor: '#000000' }]}>
-                      <SymbolView name={iconName as any} size={14} tintColor={tintColor} />
+                      <Image 
+                        source={exerciseImage} 
+                        style={{ width: 15, height: 15, tintColor: tintColor }} 
+                        resizeMode="contain"
+                      />
                     </View>
                   </View>
                   
