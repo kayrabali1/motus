@@ -307,9 +307,12 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     const minutes = getEarnedMinutes();
     let unlockedApp: string | null = null;
     try {
-      unlockedApp = await MotusScreenTime.getPendingUnlockAppName();
+      const isUnlock = await MotusScreenTime.hasPendingUnlock();
+      if (isUnlock) {
+        unlockedApp = 'Application Unlock';
+      }
     } catch (e) {
-      console.log('Failed to get pending unlock app name', e);
+      console.log('Failed to check pending unlock status', e);
     }
 
     const caloriesBurned = Math.round(reps * 0.4);

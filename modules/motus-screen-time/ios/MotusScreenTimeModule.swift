@@ -109,6 +109,13 @@ public class MotusScreenTimeModule: Module {
       promise.resolve(appName)
     }
 
+    AsyncFunction("hasPendingUnlock") { (promise: Promise) in
+      let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus")
+      let hasApp = sharedDefaults?.data(forKey: "PendingUnlockApplicationToken") != nil
+      let hasCategory = sharedDefaults?.data(forKey: "PendingUnlockCategoryToken") != nil
+      promise.resolve(hasApp || hasCategory)
+    }
+
     AsyncFunction("getActiveLockCount") { (promise: Promise) in
       if #available(iOS 15.0, *) {
         let savedData = UserDefaults.standard.data(forKey: "MotusBlockedApps")

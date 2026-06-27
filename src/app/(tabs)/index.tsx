@@ -325,7 +325,7 @@ export default function DashboardScreen() {
                       <View style={{ flex: 1, paddingRight: 8 }}>
                         <Text style={styles.timelineExerciseName}>{exerciseName}</Text>
                         <Text style={styles.timelineDetail}>
-                          {log.unlockedApp ? `Unlocked ${log.unlockedApp} for ${minutes} minutes` : 'Practice'}
+                          {log.unlockedApp ? 'Application Unlock' : 'Training Mode'}
                         </Text>
                       </View>
                       <Text style={styles.timelineTime}>{formattedTime}</Text>
