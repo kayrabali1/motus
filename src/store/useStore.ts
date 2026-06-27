@@ -432,7 +432,11 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/workouts/stats`, {
+      const d = new Date();
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const timezoneOffset = d.getTimezoneOffset();
+
+      const response = await fetch(`${API_BASE_URL}/api/workouts/stats?localDate=${localDate}&timezoneOffset=${timezoneOffset}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` },
       });

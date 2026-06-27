@@ -70,6 +70,8 @@ exports.getWorkouts = async (req, res) => {
 exports.getStats = async (req, res) => {
   try {
     const email = req.user.email;
+    const timezoneOffset = parseInt(req.query.timezoneOffset || '0', 10);
+    const localDate = req.query.localDate; // Expected format: YYYY-MM-DD
     
     // Fetch all workouts for stats computation
     const snapshot = await workoutsCollection
@@ -81,26 +83,32 @@ exports.getStats = async (req, res) => {
     let totalUnlocks = 0;
     let activityLogs = [];
 
-    // Calculate Monday-starting calendar weeks for 3 weeks (2 weeks ago, last week, current week)
-    const today = new Date();
-    const day = today.getDay();
+    // Base date for computing weeks relative to client local date
+    let baseDate = new Date();
+    if (localDate) {
+      const parts = localDate.split('-');
+      baseDate = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+    } else {
+      baseDate = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate()));
+    }
+    
+    const day = baseDate.getUTCDay();
     const diff = day === 0 ? 6 : day - 1;
     
-    const currentMonday = new Date(today);
-    currentMonday.setDate(today.getDate() - diff);
-    currentMonday.setHours(0, 0, 0, 0);
+    const currentMonday = new Date(baseDate);
+    currentMonday.setUTCDate(baseDate.getUTCDate() - diff);
 
     const weeks = [];
     for (let w = 2; w >= 0; w--) {
       const weekMonday = new Date(currentMonday);
-      weekMonday.setDate(currentMonday.getDate() - (w * 7));
+      weekMonday.setUTCDate(currentMonday.getUTCDate() - (w * 7));
       
       const weekDays = [];
       for (let i = 0; i < 7; i++) {
         const d = new Date(weekMonday);
-        d.setDate(weekMonday.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+        d.setUTCDate(weekMonday.getUTCDate() + i);
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }).charAt(0);
         weekDays.push({
           date: dateStr,
           dayLabel: dayLabel,
@@ -110,25 +118,28 @@ exports.getStats = async (req, res) => {
       weeks.push(weekDays);
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-
     snapshot.forEach(doc => {
       const data = doc.data();
       const reps = data.reps || 0;
       const calorieCoef = CALORIES_PER_REP[data.exercise] || 1.0;
       const calories = data.calories || Math.ceil(reps * calorieCoef);
 
-      const isToday = data.timestamp.startsWith(todayStr);
+      // Convert timestamp to user's local date string
+      const logDate = new Date(data.timestamp);
+      const userLocalTime = new Date(logDate.getTime() - (timezoneOffset * 60 * 1000));
+      const logLocalDateStr = `${userLocalTime.getUTCFullYear()}-${String(userLocalTime.getUTCMonth() + 1).padStart(2, '0')}-${String(userLocalTime.getUTCDate()).padStart(2, '0')}`;
+
+      // Check if this log is "today" in local timezone
+      const isToday = localDate ? (logLocalDateStr === localDate) : (data.timestamp.split('T')[0] === new Date().toISOString().split('T')[0]);
       if (isToday) {
         totalReps += reps;
         totalCalories += calories;
-        totalUnlocks += 1; // Each completed challenge counts as 1 unlock session
+        totalUnlocks += 1;
       }
 
       // Aggregate calories by matching date string into the correct week
-      const datePart = data.timestamp.split('T')[0];
       for (let w = 0; w < 3; w++) {
-        const dayObj = weeks[w].find(item => item.date === datePart);
+        const dayObj = weeks[w].find(item => item.date === logLocalDateStr);
         if (dayObj) {
           dayObj.calories += calories;
           break;
@@ -156,7 +167,7 @@ exports.getStats = async (req, res) => {
         unlocks: totalUnlocks,
       },
       weeklyCalories: weeks,
-      activityLogs: activityLogs.slice(0, 10), // Return last 10 activities
+      activityLogs: activityLogs.slice(0, 10),
     });
   } catch (error) {
     console.error('GetStats error:', error);
