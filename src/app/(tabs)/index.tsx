@@ -291,7 +291,7 @@ export default function DashboardScreen() {
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Workout Feed</Text>
-            <Text style={styles.sectionSubtitle}>Your timeline of effort today</Text>
+            <Text style={styles.sectionSubtitle}>Your recent activity</Text>
           </View>
           <SymbolView name="figure.run" size={20} tintColor="#39FF14" />
         </View>
