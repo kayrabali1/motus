@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { SymbolView } from 'expo-symbols';
 import { useMotusStore, EXERCISE_MULTIPLIERS } from '../../store/useStore';
+import Svg, { Line } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -190,12 +191,31 @@ export default function DashboardScreen() {
                 return (
                   <View key={wIdx} style={{ width: paneWidth, height: 140 }}>
                     {/* Dotted Average Line */}
-                    {weekAverage > 0 && (
-                      <View style={[styles.averageLineContainer, { bottom: 21 + (weekAverage / maxCalories) * 100 }]} pointerEvents="none">
-                        <View style={styles.averageLine} />
-                        <Text style={styles.averageLineLabel}>avg: {Math.round(weekAverage)}</Text>
-                      </View>
-                    )}
+                    {weekAverage > 0 && (() => {
+                      const colWidth = paneWidth / 7;
+                      const lineLeft = colWidth / 2;
+                      const lineWidth = paneWidth - colWidth;
+                      const lineY = 21 + (weekAverage / maxCalories) * 100;
+                      
+                      return (
+                        <View style={{ position: 'absolute', left: 0, right: 0, bottom: lineY, height: 1, zIndex: 2 }} pointerEvents="none">
+                          <View style={{ left: lineLeft, width: lineWidth, height: 1 }}>
+                            <Svg height="1" width={lineWidth}>
+                              <Line 
+                                x1="0" 
+                                y1="0" 
+                                x2={lineWidth} 
+                                y2="0" 
+                                stroke="rgba(255, 255, 255, 0.3)" 
+                                strokeWidth="1.2" 
+                                strokeDasharray="3, 3" 
+                              />
+                            </Svg>
+                          </View>
+                          <Text style={styles.averageLineLabel}>avg: {Math.round(weekAverage)}</Text>
+                        </View>
+                      );
+                    })()}
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', width: '100%' }}>
                       {week.map((item) => {
@@ -848,26 +868,9 @@ const styles = StyleSheet.create({
     color: '#FF9500',
     fontWeight: '900',
   },
-  averageLineContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  averageLine: {
-    flex: 1,
-    height: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    borderStyle: 'dashed',
-    borderRadius: 1,
-  },
   averageLineLabel: {
     position: 'absolute',
-    right: 0,
+    right: 4,
     top: -7,
     fontSize: 9,
     fontWeight: '700',
