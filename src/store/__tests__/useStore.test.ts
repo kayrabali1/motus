@@ -146,7 +146,13 @@ describe('useMotusStore Store Unit Tests', () => {
   // Auth: Sign In
   it('should signin successfully and set state/SecureStore', async () => {
     const mockUser = { name: 'Kayra', email: 'kayra@fit.com', proMember: true };
-    const statsRes = { today: { reps: 50, calories: 60, unlocks: 2 }, activityLogs: [] };
+    const todayStr = new Date().toISOString();
+    const statsRes = { 
+      today: { reps: 50, calories: 60, unlocks: 2 }, 
+      activityLogs: [
+        { id: '1', exercise: 'pushups', reps: 50, timestamp: todayStr, calories: 60, unlockedApp: 'app' }
+      ] 
+    };
     
     global.fetch = jest.fn()
       .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ token: 'mock-jwt-token', user: mockUser }) }))
@@ -305,7 +311,13 @@ describe('useMotusStore Store Unit Tests', () => {
   it('should log workout session and fetch updated stats', async () => {
     useMotusStore.setState({ token: 'jwt-token', repCount: 15, selectedExercise: 'pushups' });
     
-    const statsRes = { today: { reps: 30, calories: 36, unlocks: 2 }, activityLogs: [] };
+    const todayStr = new Date().toISOString();
+    const statsRes = { 
+      today: { reps: 30, calories: 36, unlocks: 2 }, 
+      activityLogs: [
+        { id: '1', exercise: 'pushups', reps: 30, timestamp: todayStr, calories: 36, unlockedApp: 'app' }
+      ] 
+    };
     global.fetch = jest.fn()
       .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'workout-1' }) }))
       .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve(statsRes) }));
@@ -334,10 +346,16 @@ describe('useMotusStore Store Unit Tests', () => {
   // Workouts: Fetch Stats
   it('should fetch stats and update state', async () => {
     useMotusStore.setState({ token: 'jwt-token' });
+    const todayStr = new Date().toISOString();
     const statsRes = {
       today: { reps: 100, calories: 120, unlocks: 4 },
       weeklyCalories: [[{ date: '2026-06-25', dayLabel: 'T', calories: 10 }]],
-      activityLogs: [{ id: '1', exercise: 'pushups', reps: 10, timestamp: '2026-06-25T15:00:00Z' }]
+      activityLogs: [
+        { id: '1', exercise: 'pushups', reps: 40, timestamp: todayStr, calories: 50, unlockedApp: 'app1' },
+        { id: '2', exercise: 'pushups', reps: 30, timestamp: todayStr, calories: 30, unlockedApp: 'app2' },
+        { id: '3', exercise: 'pushups', reps: 20, timestamp: todayStr, calories: 30, unlockedApp: 'app3' },
+        { id: '4', exercise: 'pushups', reps: 10, timestamp: todayStr, calories: 10, unlockedApp: 'app4' },
+      ]
     };
     global.fetch = mockFetchResponse(true, 200, statsRes);
 
@@ -347,7 +365,7 @@ describe('useMotusStore Store Unit Tests', () => {
     expect(state.todayReps).toBe(100);
     expect(state.todayCalories).toBe(120);
     expect(state.todayUnlocks).toBe(4);
-    expect(state.activityLogs).toHaveLength(1);
+    expect(state.activityLogs).toHaveLength(4);
     expect(state.weeklyCalories).toEqual(statsRes.weeklyCalories);
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_today_reps', '100');
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_today_calories', '120');

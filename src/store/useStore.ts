@@ -447,22 +447,43 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       });
       if (response.ok) {
         const data = await response.json();
+        const logs = data.activityLogs || [];
+
+        // Compute stats locally using user's current local date
+        const now = new Date();
+        const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        let computedReps = 0;
+        let computedCalories = 0;
+        let computedUnlocks = 0;
+
+        logs.forEach((log: any) => {
+          const logDate = new Date(log.timestamp);
+          const logLocalStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+          
+          if (logLocalStr === localTodayStr) {
+            computedReps += log.reps || 0;
+            computedCalories += log.calories || 0;
+            if (log.unlockedApp) {
+              computedUnlocks += 1;
+            }
+          }
+        });
+
         set({
-          todayReps: data.today.reps,
-          todayCalories: data.today.calories,
-          todayUnlocks: data.today.unlocks,
-          activityLogs: data.activityLogs,
+          todayReps: computedReps,
+          todayCalories: computedCalories,
+          todayUnlocks: computedUnlocks,
+          activityLogs: logs,
           weeklyCalories: data.weeklyCalories || [],
         });
-        await SecureStore.setItemAsync('motus_today_reps', data.today.reps.toString());
-        await SecureStore.setItemAsync('motus_today_calories', data.today.calories.toString());
-        await SecureStore.setItemAsync('motus_today_unlocks', data.today.unlocks.toString());
-        await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(data.activityLogs));
-        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
 
-        const d = new Date();
-        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        await SecureStore.setItemAsync('motus_today_date', localDateStr);
+        await SecureStore.setItemAsync('motus_today_reps', computedReps.toString());
+        await SecureStore.setItemAsync('motus_today_calories', computedCalories.toString());
+        await SecureStore.setItemAsync('motus_today_unlocks', computedUnlocks.toString());
+        await SecureStore.setItemAsync('motus_activity_logs', JSON.stringify(logs));
+        await SecureStore.setItemAsync('motus_weekly_calories', JSON.stringify(data.weeklyCalories || []));
+        await SecureStore.setItemAsync('motus_today_date', localTodayStr);
       }
     } catch (e) {
       console.log('Failed to fetch stats from api', e);
