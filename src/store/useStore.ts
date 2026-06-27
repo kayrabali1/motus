@@ -315,7 +315,16 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       console.log('Failed to check pending unlock status', e);
     }
 
-    const caloriesBurned = Math.round(reps * 0.4);
+    const CALORIES_PER_REP: Record<string, number> = {
+      'pushups': 0.4,
+      'squats': 0.5,
+      'pullups': 0.5,
+      'jumping_jacks': 0.3,
+      'burpees': 0.6,
+      'high_knees': 0.2,
+    };
+    const calorieCoef = CALORIES_PER_REP[exercise] || 1.0;
+    const caloriesBurned = Math.ceil(reps * calorieCoef);
     
     const newLog: ActivityLog = {
       id: `local-${Date.now()}`,

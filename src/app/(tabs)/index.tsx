@@ -338,8 +338,8 @@ export default function DashboardScreen() {
               const minutes = log.minutes || (log.reps * multiplier);
               
               // Calorie coefficient matching backend values
-              const calorieCoef = log.exercise === 'pushups' ? 1.2 : log.exercise === 'pullups' ? 2.0 : log.exercise === 'squats' ? 0.5 : log.exercise === 'jumping_jacks' ? 0.8 : log.exercise === 'burpees' ? 2.5 : log.exercise === 'high_knees' ? 1.0 : 1.0;
-              const calories = log.calories || Math.round(log.reps * calorieCoef);
+              const calorieCoef = log.exercise === 'pushups' ? 0.4 : log.exercise === 'pullups' ? 0.5 : log.exercise === 'squats' ? 0.5 : log.exercise === 'jumping_jacks' ? 0.3 : log.exercise === 'burpees' ? 0.6 : log.exercise === 'high_knees' ? 0.2 : 1.0;
+              const calories = log.calories || Math.ceil(log.reps * calorieCoef);
 
               const isFirst = index === 0;
 

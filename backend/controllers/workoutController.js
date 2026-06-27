@@ -3,12 +3,12 @@ const workoutsCollection = db.collection('workouts');
 
 // Calories estimate per rep for each exercise type
 const CALORIES_PER_REP = {
-  'pushups': 1.2,
+  'pushups': 0.4,
   'squats': 0.5,
-  'pullups': 2.0,
-  'jumping_jacks': 0.8,
-  'burpees': 2.5,
-  'high_knees': 1.0,
+  'pullups': 0.5,
+  'jumping_jacks': 0.3,
+  'burpees': 0.6,
+  'high_knees': 0.2,
 };
 
 exports.logWorkout = async (req, res) => {
@@ -21,7 +21,7 @@ exports.logWorkout = async (req, res) => {
     }
 
     const calorieCoef = CALORIES_PER_REP[exercise] || 1.0;
-    const calories = Math.round(reps * calorieCoef);
+    const calories = Math.ceil(reps * calorieCoef);
     const earnedMinutes = minutes || (reps * (exercise === 'pushups' ? 2 : exercise === 'pullups' ? 3 : 1));
 
     const newLog = {
@@ -116,7 +116,7 @@ exports.getStats = async (req, res) => {
       const data = doc.data();
       const reps = data.reps || 0;
       const calorieCoef = CALORIES_PER_REP[data.exercise] || 1.0;
-      const calories = data.calories || Math.round(reps * calorieCoef);
+      const calories = data.calories || Math.ceil(reps * calorieCoef);
 
       const isToday = data.timestamp.startsWith(todayStr);
       if (isToday) {
