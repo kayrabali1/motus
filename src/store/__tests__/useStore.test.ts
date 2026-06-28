@@ -536,5 +536,181 @@ describe('useMotusStore Store Unit Tests', () => {
     await expect(useMotusStore.getState().fetchStatsAndActivity()).resolves.not.toThrow();
     expect(useMotusStore.getState().todayReps).toBe(0);
   });
+
+  // Auth: Google Sign-in
+  it('should signin with Google successfully and set state/SecureStore', async () => {
+    const mockUser = { name: 'Google User', email: 'google@fit.com', proMember: true };
+    const statsRes = { today: { reps: 0, calories: 0, unlocks: 0 }, activityLogs: [] };
+    
+    global.fetch = jest.fn()
+      .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ token: 'mock-jwt-token', user: mockUser }) }))
+      .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve(statsRes) }));
+
+    const success = await useMotusStore.getState().signInWithGoogle('google-id-token', 'Google User');
+    
+    expect(success).toBe(true);
+    expect(useMotusStore.getState().token).toBe('mock-jwt-token');
+    expect(useMotusStore.getState().user).toEqual(mockUser);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_token', 'mock-jwt-token');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_user', JSON.stringify(mockUser));
+  });
+
+  it('should handle Google signin server error and network failure', async () => {
+    global.fetch = mockFetchResponse(false, 400, { error: 'Invalid Google token.' });
+    let success = await useMotusStore.getState().signInWithGoogle('google-id-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Invalid Google token.');
+
+    global.fetch = mockFetchResponse(false, 400, {});
+    success = await useMotusStore.getState().signInWithGoogle('google-id-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Google authentication failed.');
+
+    global.fetch = mockFetchError('Network down');
+    success = await useMotusStore.getState().signInWithGoogle('google-id-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Network down');
+  });
+
+  // Auth: Apple Sign-in
+  it('should signin with Apple successfully and set state/SecureStore', async () => {
+    const mockUser = { name: 'Apple User', email: 'apple@fit.com', proMember: true };
+    const statsRes = { today: { reps: 0, calories: 0, unlocks: 0 }, activityLogs: [] };
+    
+    global.fetch = jest.fn()
+      .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ token: 'mock-jwt-token', user: mockUser }) }))
+      .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve(statsRes) }));
+
+    const success = await useMotusStore.getState().signInWithApple('apple-identity-token', 'Apple User');
+    
+    expect(success).toBe(true);
+    expect(useMotusStore.getState().token).toBe('mock-jwt-token');
+    expect(useMotusStore.getState().user).toEqual(mockUser);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_token', 'mock-jwt-token');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_user', JSON.stringify(mockUser));
+  });
+
+  it('should handle Apple signin server error and network failure', async () => {
+    global.fetch = mockFetchResponse(false, 400, { error: 'Invalid Apple token.' });
+    let success = await useMotusStore.getState().signInWithApple('apple-identity-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Invalid Apple token.');
+
+    global.fetch = mockFetchResponse(false, 400, {});
+    success = await useMotusStore.getState().signInWithApple('apple-identity-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Apple authentication failed.');
+
+    global.fetch = mockFetchError('Network down');
+    success = await useMotusStore.getState().signInWithApple('apple-identity-token');
+    expect(success).toBe(false);
+    expect(useMotusStore.getState().authError).toBe('Network down');
+  });
+
+  // Additional Coverage Tests
+  it('should set app relock alert enabled', () => {
+    useMotusStore.getState().setAppRelockAlertEnabled(false);
+    expect(useMotusStore.getState().appRelockAlertEnabled).toBe(false);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('motus_app_relock_alert_enabled', 'false');
+  });
+
+  it('should handle hasPendingUnlock error during logWorkoutSession', async () => {
+    useMotusStore.setState({ token: 'jwt-token', repCount: 10, selectedExercise: 'pushups' });
+    MotusScreenTime.hasPendingUnlock.mockRejectedValueOnce(new Error('ScreenTime crash'));
+    global.fetch = mockFetchResponse(true, 201, { id: '1' });
+    
+    await expect(useMotusStore.getState().logWorkoutSession('pushups', 10)).resolves.not.toThrow();
+  });
+
+  it('should update existing day in weeklyCalories during logWorkoutSession', async () => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const weeklyData = [[{ dayLabel: 'Today', calories: 100, date: todayStr }]];
+    useMotusStore.setState({ 
+      token: 'jwt-token', 
+      repCount: 10, 
+      selectedExercise: 'pushups', 
+      weeklyCalories: weeklyData 
+    });
+    
+    global.fetch = jest.fn()
+      .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1' }) }))
+      .mockImplementationOnce(() => Promise.resolve({ 
+        ok: true, 
+        json: () => Promise.resolve({ 
+          weeklyCalories: [[{ dayLabel: 'Today', calories: 104, date: todayStr }]], 
+          activityLogs: [] 
+        }) 
+      }));
+
+    await useMotusStore.getState().logWorkoutSession('pushups', 10);
+    expect(useMotusStore.getState().weeklyCalories[0][0].calories).toBe(104); // 100 + 10 * 0.4
+  });
+
+  it('should handle SecureStore failure during logWorkoutSession', async () => {
+    useMotusStore.setState({ token: 'jwt-token', repCount: 10, selectedExercise: 'pushups' });
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error('SecureStore disk full'));
+    global.fetch = mockFetchResponse(true, 201, { id: '1' });
+
+    await expect(useMotusStore.getState().logWorkoutSession('pushups', 10)).resolves.not.toThrow();
+  });
+
+  it('should adjust stats when UTC date is different from local log date', async () => {
+    useMotusStore.setState({ token: 'jwt-token' });
+    const localDateStr = '2026-06-28';
+    const utcDateStr = '2026-06-27';
+    
+    const weeklyData = [
+      [
+        { dayLabel: 'Sat', calories: 100, date: utcDateStr },
+        { dayLabel: 'Sun', calories: 200, date: localDateStr }
+      ]
+    ];
+    
+    const statsRes = {
+      today: { reps: 10, calories: 20, unlocks: 1 },
+      weeklyCalories: weeklyData,
+      activityLogs: [
+        {
+          id: '1',
+          exercise: 'pushups',
+          reps: 10,
+          timestamp: '2026-06-27T23:30:00Z', // UTC 27th, but local is 28th
+          calories: 20
+        }
+      ]
+    };
+    
+    global.fetch = mockFetchResponse(true, 200, statsRes);
+    useMotusStore.setState({ weeklyCalories: weeklyData });
+    
+    await useMotusStore.getState().fetchStatsAndActivity();
+    expect(useMotusStore.getState().weeklyCalories[0][0].calories).toBe(80);
+    expect(useMotusStore.getState().weeklyCalories[0][1].calories).toBe(220);
+  });
+
+  it('should handle JSON parsing errors in loadState', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === 'motus_activity_logs') return Promise.resolve('invalid-json');
+      if (key === 'motus_weekly_calories') return Promise.resolve('invalid-json');
+      return Promise.resolve(null);
+    });
+    
+    await expect(useMotusStore.getState().loadState()).resolves.not.toThrow();
+    expect(useMotusStore.getState().activityLogs).toEqual([]);
+    expect(useMotusStore.getState().weeklyCalories).toEqual([]);
+  });
+
+  it('should sync stats on loadState if token is present', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === 'motus_token') return Promise.resolve('stored-token');
+      return Promise.resolve(null);
+    });
+    const spyFetch = jest.spyOn(useMotusStore.getState(), 'fetchStatsAndActivity').mockResolvedValue();
+
+    await useMotusStore.getState().loadState();
+    expect(spyFetch).toHaveBeenCalled();
+    spyFetch.mockRestore();
+  });
 });
 

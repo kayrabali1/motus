@@ -9,6 +9,27 @@ jest.mock('../../store/useStore', () => ({
   useMotusStore: jest.fn(),
 }));
 
+jest.mock('expo-apple-authentication', () => ({
+  isAvailableAsync: jest.fn(() => Promise.resolve(true)),
+  signInAsync: jest.fn(),
+  AppleAuthenticationScope: {
+    FULL_NAME: 'FULL_NAME',
+    EMAIL: 'EMAIL',
+  },
+}));
+
+jest.mock('expo-auth-session/providers/google', () => ({
+  useIdTokenAuthRequest: jest.fn(() => [
+    {}, // request
+    null, // response
+    jest.fn(), // promptAsync
+  ]),
+}));
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+}));
+
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
 
@@ -28,6 +49,8 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
     mockStore = {
       signUp: jest.fn(),
       signIn: jest.fn(),
+      signInWithGoogle: jest.fn(),
+      signInWithApple: jest.fn(),
       requestResetCode: jest.fn(),
       resetPassword: jest.fn(),
       authLoading: false,
@@ -571,6 +594,168 @@ describe('AuthScreen Unit & Integration Tests (TestRenderer)', () => {
         textInput.props.onBlur();
       });
       expect(mockBlur).toHaveBeenCalled();
+    });
+  });
+
+  describe('Social Login Flow', () => {
+    it('should render Apple and Google login buttons', () => {
+      const renderer = renderComponent();
+      const root = renderer.root;
+      
+      expect(findButtonWithText(root, 'Apple')).toBeTruthy();
+      expect(findButtonWithText(root, 'Google')).toBeTruthy();
+    });
+
+    it('should call signInWithApple on Apple button press', async () => {
+      const AppleAuthentication = require('expo-apple-authentication');
+      AppleAuthentication.signInAsync.mockResolvedValue({
+        identityToken: 'test-apple-token',
+        fullName: { givenName: 'Kayra', familyName: 'Bali' }
+      });
+      mockStore.signInWithApple.mockResolvedValue(true);
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const appleBtn = findButtonWithText(root, 'Apple');
+
+      await act(async () => {
+        await appleBtn.props.onPress();
+      });
+
+      expect(AppleAuthentication.signInAsync).toHaveBeenCalled();
+      expect(mockStore.signInWithApple).toHaveBeenCalledWith('test-apple-token', 'Kayra Bali');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    });
+
+    it('should call promptGoogleAsync on Google button press', async () => {
+      const Google = require('expo-auth-session/providers/google');
+      const mockPromptAsync = jest.fn().mockResolvedValue({ type: 'success' });
+      Google.useIdTokenAuthRequest.mockReturnValue([
+        {}, // request
+        null, // response
+        mockPromptAsync, // promptAsync
+      ]);
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const googleBtn = findButtonWithText(root, 'Google');
+
+      await act(async () => {
+        await googleBtn.props.onPress();
+      });
+
+      expect(mockPromptAsync).toHaveBeenCalled();
+    });
+
+    it('should handle Google login with success response type', async () => {
+      const Google = require('expo-auth-session/providers/google');
+      const mockPromptAsync = jest.fn();
+      
+      Google.useIdTokenAuthRequest.mockReturnValue([
+        {}, // request
+        { type: 'success', authentication: { idToken: 'test-google-id-token' } }, // response
+        mockPromptAsync,
+      ]);
+      mockStore.signInWithGoogle.mockResolvedValue(true);
+
+      let renderer: any;
+      await act(async () => {
+        renderer = TestRenderer.create(<AuthScreen />);
+      });
+
+      expect(mockStore.signInWithGoogle).toHaveBeenCalledWith('test-google-id-token');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    });
+
+    it('should handle Google login success response type but no idToken', async () => {
+      const Google = require('expo-auth-session/providers/google');
+      const mockPromptAsync = jest.fn();
+      
+      Google.useIdTokenAuthRequest.mockReturnValue([
+        {}, // request
+        { type: 'success', authentication: null }, // response
+        mockPromptAsync,
+      ]);
+
+      let renderer: any;
+      await act(async () => {
+        renderer = TestRenderer.create(<AuthScreen />);
+      });
+
+      const root = renderer.root;
+      expect(findTextWithContent(root, 'Google login returned no ID token.')).toBeTruthy();
+    });
+
+    it('should handle Google login prompt rejection/error', async () => {
+      const Google = require('expo-auth-session/providers/google');
+      const mockPromptAsync = jest.fn().mockRejectedValue(new Error('Google prompt failed'));
+      Google.useIdTokenAuthRequest.mockReturnValue([
+        {},
+        null,
+        mockPromptAsync,
+      ]);
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const googleBtn = findButtonWithText(root, 'Google');
+
+      await act(async () => {
+        await googleBtn.props.onPress();
+      });
+
+      expect(findTextWithContent(root, 'Google prompt failed')).toBeTruthy();
+    });
+
+    it('should handle Apple login request cancelled', async () => {
+      const AppleAuthentication = require('expo-apple-authentication');
+      const cancelError = new Error('User cancelled');
+      (cancelError as any).code = 'ERR_REQUEST_CANCELED';
+      AppleAuthentication.signInAsync.mockRejectedValue(cancelError);
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const appleBtn = findButtonWithText(root, 'Apple');
+
+      await act(async () => {
+        await appleBtn.props.onPress();
+      });
+
+      expect(AppleAuthentication.signInAsync).toHaveBeenCalled();
+      expect(mockStore.signInWithApple).not.toHaveBeenCalled();
+    });
+
+    it('should handle Apple login missing identityToken', async () => {
+      const AppleAuthentication = require('expo-apple-authentication');
+      AppleAuthentication.signInAsync.mockResolvedValue({
+        identityToken: null,
+      });
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const appleBtn = findButtonWithText(root, 'Apple');
+
+      await act(async () => {
+        await appleBtn.props.onPress();
+      });
+
+      expect(AppleAuthentication.signInAsync).toHaveBeenCalled();
+      expect(findTextWithContent(root, 'Apple authentication failed: No identity token returned.')).toBeTruthy();
+    });
+
+    it('should handle Apple login generic error', async () => {
+      const AppleAuthentication = require('expo-apple-authentication');
+      AppleAuthentication.signInAsync.mockRejectedValue(new Error('Apple service failure'));
+
+      const renderer = renderComponent();
+      const root = renderer.root;
+      const appleBtn = findButtonWithText(root, 'Apple');
+
+      await act(async () => {
+        await appleBtn.props.onPress();
+      });
+
+      expect(AppleAuthentication.signInAsync).toHaveBeenCalled();
+      expect(findTextWithContent(root, 'Apple service failure')).toBeTruthy();
     });
   });
 });

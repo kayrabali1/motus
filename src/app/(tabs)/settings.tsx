@@ -26,6 +26,12 @@ import Animated, {
   interpolate
 } from 'react-native-reanimated';
 import { useMotusStore, EXERCISE_MULTIPLIERS } from '../../store/useStore';
+let ImagePicker: any = null;
+try {
+  ImagePicker = require('expo-image-picker');
+} catch (e) {
+  console.log('expo-image-picker native module is not loaded yet');
+}
 
 const { width } = Dimensions.get('window');
 
@@ -50,8 +56,10 @@ export default function SettingsScreen() {
     user,
     signOut,
     updateProfileName,
+    updateProfileAvatar,
     appRelockAlertEnabled,
     setAppRelockAlertEnabled,
+    setProMember,
   } = useMotusStore();
   
   // Local state
@@ -59,9 +67,103 @@ export default function SettingsScreen() {
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isPaywallVisible, setPaywallVisible] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
   
   // Training Mode Modal State
   const [isTrainingModalVisible, setTrainingModalVisible] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleSubscribe = async () => {
+    setPaywallVisible(false);
+    await setProMember(true);
+    Alert.alert(
+      "Welcome to Motus Pro! 🎉",
+      "Your 7-day free trial is active. You can now lock unlimited apps and create schedules.",
+      [{ text: "Awesome!" }]
+    );
+  };
+
+  const handlePickAvatar = async () => {
+    if (!ImagePicker) {
+      Alert.alert(
+        "Rebuild Required",
+        "Uploading an avatar requires a new native module. Please run 'npx expo run:ios' (or 'npx expo run:android') in your terminal to rebuild the development container and activate this feature."
+      );
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert("Permission Required", "Please grant access to your photo library to upload an avatar.");
+      return;
+    }
+
+    Alert.alert(
+      "Update Avatar",
+      "Select an option to update your profile photo:",
+      [
+        {
+          text: "Choose from Library",
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.35,
+                base64: true,
+              });
+
+              if (!result.canceled && result.assets && result.assets[0].base64) {
+                setIsUploading(true);
+                const base64Str = `data:image/jpeg;base64,${result.assets[0].base64}`;
+                const success = await updateProfileAvatar(base64Str);
+                setIsUploading(false);
+                if (!success) {
+                  Alert.alert("Error", "Failed to upload avatar photo.");
+                }
+              }
+            } catch (e) {
+              console.log("Failed to launch image library", e);
+              setIsUploading(false);
+            }
+          }
+        },
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+            if (cameraStatus.status !== 'granted') {
+              Alert.alert("Permission Required", "Please grant camera access to take a profile photo.");
+              return;
+            }
+            try {
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.35,
+                base64: true,
+              });
+
+              if (!result.canceled && result.assets && result.assets[0].base64) {
+                setIsUploading(true);
+                const base64Str = `data:image/jpeg;base64,${result.assets[0].base64}`;
+                const success = await updateProfileAvatar(base64Str);
+                setIsUploading(false);
+                if (!success) {
+                  Alert.alert("Error", "Failed to upload avatar photo.");
+                }
+              }
+            } catch (e) {
+              console.log("Failed to launch camera", e);
+              setIsUploading(false);
+            }
+          }
+        },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
 
   // Training Mode Modal dimensions
   const modalWidth = width * 0.88;
@@ -141,7 +243,12 @@ export default function SettingsScreen() {
         <View style={styles.heroWrapper}>
           <BlurView intensity={30} style={styles.profileCard} tint="dark">
             <View style={styles.profileHeaderRow}>
-              <View style={styles.profileAvatarWrapper}>
+              <TouchableOpacity 
+                style={styles.profileAvatarWrapper} 
+                activeOpacity={0.8} 
+                onPress={handlePickAvatar}
+                disabled={isUploading}
+              >
                 <LinearGradient
                   colors={['#39FF14', '#007AFF']}
                   start={{ x: 0, y: 0 }}
@@ -149,10 +256,19 @@ export default function SettingsScreen() {
                   style={styles.avatarGlowBorder}
                 >
                   <View style={styles.avatarInner}>
-                    <SymbolView name="person.fill" size={32} tintColor="#FFFFFF" fallback={<View />} />
+                    {isUploading ? (
+                      <ActivityIndicator size="small" color="#39FF14" />
+                    ) : user?.avatarUrl ? (
+                      <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                    ) : (
+                      <SymbolView name="person.fill" size={32} tintColor="#FFFFFF" fallback={<View />} />
+                    )}
                   </View>
                 </LinearGradient>
-              </View>
+                <View style={styles.avatarUploadBadge}>
+                  <SymbolView name="camera.fill" size={10} tintColor="#000000" />
+                </View>
+              </TouchableOpacity>
               
               <View style={styles.profileTextInfo}>
                 <View style={styles.profileNameRow}>
@@ -169,19 +285,47 @@ export default function SettingsScreen() {
                 </View>
                 <Text style={styles.profileEmail} numberOfLines={1}>{user?.email || 'guest@motus.fit'}</Text>
                 
-                <View style={styles.proBadgeContainer}>
-                  <LinearGradient
-                    colors={['#39FF14', '#15cc00']}
-                    style={styles.proBadge}
-                  >
-                    <SymbolView name="star.fill" size={9} tintColor="#000000" fallback={<View />} />
-                    <Text style={styles.proBadgeText}>PRO</Text>
-                  </LinearGradient>
-                </View>
+                {user?.proMember && (
+                  <View style={styles.proBadgeContainer}>
+                    <LinearGradient
+                      colors={['#39FF14', '#15cc00']}
+                      style={styles.proBadge}
+                    >
+                      <SymbolView name="star.fill" size={9} tintColor="#000000" fallback={<View />} />
+                      <Text style={styles.proBadgeText}>PRO</Text>
+                    </LinearGradient>
+                  </View>
+                )}
               </View>
             </View>
           </BlurView>
         </View>
+
+        {!user?.proMember && (
+          <TouchableOpacity 
+            style={styles.upgradeCardContainer} 
+            activeOpacity={0.9}
+            onPress={() => setPaywallVisible(true)}
+          >
+            <LinearGradient
+              colors={['rgba(57, 255, 20, 0.15)', 'rgba(0, 122, 255, 0.15)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.upgradeCard}
+            >
+              <View style={styles.upgradeCardLeft}>
+                <View style={styles.upgradeIconContainer}>
+                  <SymbolView name="sparkles" size={24} tintColor="#39FF14" fallback={<View />} />
+                </View>
+                <View style={styles.upgradeTextContainer}>
+                  <Text style={styles.upgradeCardTitle}>Upgrade to Motus Pro</Text>
+                  <Text style={styles.upgradeCardSubtitle}>Lock unlimited apps and configure schedules</Text>
+                </View>
+              </View>
+              <SymbolView name="chevron.right" size={16} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>&gt;</Text>} />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         {/* Practice Mode Header */}
         <View style={styles.sectionHeader}>
@@ -346,6 +490,25 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </BlurView>
 
+        {user?.proMember && (
+          <TouchableOpacity 
+            style={[styles.signOutButtonPremium, { marginBottom: 12 }]} 
+            activeOpacity={0.8} 
+            onPress={async () => {
+              await setProMember(false);
+              Alert.alert("Downgraded", "You are now on the Free tier.");
+            }}
+          >
+            <LinearGradient
+              colors={['rgba(255, 59, 48, 0.08)', 'rgba(255, 59, 48, 0.03)']}
+              style={styles.signOutGradient}
+            >
+              <SymbolView name="arrow.down.right.circle.fill" size={18} tintColor="#FF3B30" fallback={<View />} />
+              <Text style={styles.signOutTextPremium}>Downgrade to Free (Demo)</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         {/* Sign Out Button */}
         <TouchableOpacity style={styles.signOutButtonPremium} activeOpacity={0.8} onPress={handleSignOut}>
           <LinearGradient
@@ -509,6 +672,121 @@ export default function SettingsScreen() {
                 <Text style={styles.modalSaveText as any}>Start Practice</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </BlurView>
+      </Modal>
+
+      {/* Paywall Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isPaywallVisible}
+        onRequestClose={() => setPaywallVisible(false)}
+      >
+        <BlurView intensity={90} tint="dark" style={styles.paywallBackground}>
+          <View style={styles.paywallContainer}>
+            {/* Close button */}
+            <TouchableOpacity 
+              style={styles.paywallCloseBtn} 
+              onPress={() => setPaywallVisible(false)}
+            >
+              <SymbolView name="xmark.circle.fill" size={28} tintColor="#8E8E93" fallback={<Text style={{color: '#8e8e93', fontSize: 24}}>X</Text>} />
+            </TouchableOpacity>
+
+            <ScrollView contentContainerStyle={styles.paywallScrollContent} showsVerticalScrollIndicator={false}>
+              {/* Header */}
+              <View style={styles.paywallHeader}>
+                <LinearGradient
+                  colors={['#39FF14', '#007AFF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.paywallBadge}
+                >
+                  <Text style={styles.paywallBadgeText}>MOTUS PRO</Text>
+                </LinearGradient>
+                <Text style={styles.paywallTitle}>Smarter Focus. Harder Workouts.</Text>
+                <Text style={styles.paywallSubtitle}>Form unbreakable habits and unlock full productivity.</Text>
+              </View>
+
+              {/* Features List */}
+              <View style={styles.featuresList}>
+                <View style={styles.featureRow}>
+                  <SymbolView name="checkmark.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>✓</Text>} />
+                  <View style={styles.featureTextCol}>
+                    <Text style={styles.featureTitle}>Lock Unlimited Apps</Text>
+                    <Text style={styles.featureDesc}>Prevent replacing one distraction with another.</Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureRow}>
+                  <SymbolView name="checkmark.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>✓</Text>} />
+                  <View style={styles.featureTextCol}>
+                    <Text style={styles.featureTitle}>Automated Lock Schedules</Text>
+                    <Text style={styles.featureDesc}>Automatically lock apps during work, study, or sleep.</Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureRow}>
+                  <SymbolView name="checkmark.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>✓</Text>} />
+                  <View style={styles.featureTextCol}>
+                    <Text style={styles.featureTitle}>Strict Mode Included</Text>
+                    <Text style={styles.featureDesc}>No easy bypasses. Force workouts to access apps.</Text>
+                  </View>
+                </View>
+
+                <View style={styles.featureRow}>
+                  <SymbolView name="checkmark.circle.fill" size={20} tintColor="#39FF14" fallback={<Text style={{color: '#39FF14'}}>✓</Text>} />
+                  <View style={styles.featureTextCol}>
+                    <Text style={styles.featureTitle}>All Exercises & Forms</Text>
+                    <Text style={styles.featureDesc}>Access burpees, pull-ups, jumping jacks, and stats.</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Pricing selector */}
+              <Text style={styles.selectPlanTitle}>Select Your Plan</Text>
+              <View style={styles.plansContainer}>
+                {/* Annual Plan */}
+                <TouchableOpacity 
+                  style={[styles.planCard, selectedPlan === 'annual' && styles.planCardSelected]}
+                  onPress={() => setSelectedPlan('annual')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.planCardHeader}>
+                    <Text style={styles.planName}>Annual Access</Text>
+                    <View style={styles.bestValueBadge}>
+                      <Text style={styles.bestValueText}>BEST VALUE</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.planPrice}>€49.99 <Text style={styles.planPeriod}>/ year</Text></Text>
+                  <Text style={styles.planDetail}>Only €4.16/month (Save 58%)</Text>
+                </TouchableOpacity>
+
+                {/* Monthly Plan */}
+                <TouchableOpacity 
+                  style={[styles.planCard, selectedPlan === 'monthly' && styles.planCardSelected]}
+                  onPress={() => setSelectedPlan('monthly')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.planName}>Monthly Access</Text>
+                  <Text style={styles.planPrice}>€9.99 <Text style={styles.planPeriod}>/ month</Text></Text>
+                  <Text style={styles.planDetail}>Cancel anytime</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Purchase Button */}
+              <TouchableOpacity 
+                style={styles.subscribeBtn} 
+                activeOpacity={0.8}
+                onPress={handleSubscribe}
+              >
+                <Text style={styles.subscribeBtnText}>Start 7-Day Free Trial</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.disclaimerText}>
+                No payment will be charged today. Your 7-day trial of Motus Pro will begin immediately. You can cancel at any time in your App Store Settings. Prices include VAT where applicable.
+              </Text>
+            </ScrollView>
           </View>
         </BlurView>
       </Modal>
@@ -1063,5 +1341,231 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 24,
     textAlign: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+  },
+  avatarUploadBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#39FF14',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#1C1C1E',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  upgradeCardContainer: {
+    width: '100%',
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  upgradeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.25)',
+  },
+  upgradeCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  upgradeIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(57, 255, 20, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  upgradeTextContainer: {
+    flex: 1,
+  },
+  upgradeCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  upgradeCardSubtitle: {
+    color: '#8E8E93',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  paywallBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paywallContainer: {
+    backgroundColor: '#1c1c1e',
+    width: '90%',
+    height: '82%',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    paddingTop: 16,
+  },
+  paywallCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  paywallScrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+  },
+  paywallHeader: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  paywallBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  paywallBadgeText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  paywallTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  paywallSubtitle: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  featuresList: {
+    marginBottom: 24,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  featureTextCol: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  featureTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  featureDesc: {
+    color: '#8E8E93',
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  selectPlanTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  plansContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  planCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  planCardSelected: {
+    borderColor: '#39FF14',
+    backgroundColor: 'rgba(57, 255, 20, 0.04)',
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  planName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bestValueBadge: {
+    backgroundColor: '#39FF14',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  bestValueText: {
+    color: '#000000',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  planPrice: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  planPeriod: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  planDetail: {
+    color: '#8E8E93',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  subscribeBtn: {
+    backgroundColor: '#39FF14',
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#39FF14',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 4,
+  },
+  subscribeBtnText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  disclaimerText: {
+    color: '#666',
+    fontSize: 10,
+    textAlign: 'center',
+    lineHeight: 14,
   },
 });

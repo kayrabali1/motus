@@ -105,9 +105,24 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
         {/* Header */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.dateText}>{todayDateStr}</Text>
-          <Text style={styles.header}>{user ? `Hey, ${user.name}` : 'Welcome back'}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.dateText}>{todayDateStr}</Text>
+            <Text style={styles.header}>
+              Hey, <Text style={styles.headerName}>{user ? user.name : 'Athlete'}</Text>
+            </Text>
+            <Text style={styles.headerSubtitle}>Ready to crush your goals today?</Text>
+          </View>
+          
+          <View style={styles.headerAvatarContainer}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.headerAvatar} />
+            ) : (
+              <View style={styles.headerAvatarFallback}>
+                <SymbolView name="person.fill" size={22} tintColor="#8E8E93" />
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Hero Card */}
@@ -312,28 +327,28 @@ export default function DashboardScreen() {
               
               let exerciseName = 'Push-ups';
               let tintColor = '#FF2D55';
-              let exerciseImage = require('../../../assets/images/exercises/pushup.png');
+              let iconName = 'figure.strengthtraining.traditional';
               
               if (log.exercise === 'squats') {
                 exerciseName = 'Air Squats';
                 tintColor = '#39FF14';
-                exerciseImage = require('../../../assets/images/exercises/squat.png');
+                iconName = 'figure.cooldown';
               } else if (log.exercise === 'pullups') {
                 exerciseName = 'Pull-ups';
                 tintColor = '#007AFF';
-                exerciseImage = require('../../../assets/images/exercises/pullup.png');
+                iconName = 'figure.mixed.cardio';
               } else if (log.exercise === 'jumping_jacks') {
                 exerciseName = 'Jumping Jacks';
                 tintColor = '#FF9500';
-                exerciseImage = require('../../../assets/images/exercises/jumping_jacks.png');
+                iconName = 'figure.highintensity.intervaltraining';
               } else if (log.exercise === 'burpees') {
                 exerciseName = 'Burpees';
                 tintColor = '#AF52DE';
-                exerciseImage = require('../../../assets/images/exercises/burpees.png');
+                iconName = 'figure.cross.training';
               } else if (log.exercise === 'high_knees') {
                 exerciseName = 'High Knees';
                 tintColor = '#FFCC00';
-                exerciseImage = require('../../../assets/images/exercises/high_knees.png');
+                iconName = 'figure.run';
               }
 
               const isLast = index === activityLogs.length - 1;
@@ -365,11 +380,7 @@ export default function DashboardScreen() {
 
                     {/* Timeline Node */}
                     <View style={[styles.timelineNode, { borderColor: tintColor, backgroundColor: '#000000' }]}>
-                      <Image 
-                        source={exerciseImage} 
-                        style={{ width: 15, height: 15, tintColor: tintColor }} 
-                        resizeMode="contain"
-                      />
+                      <SymbolView name={iconName as any} size={14} tintColor={tintColor} />
                     </View>
                   </View>
                   
@@ -472,21 +483,65 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     paddingBottom: 140,
   },
-  headerContainer: {
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 32,
   },
+  headerContainer: {
+    flex: 1,
+  },
+  headerAvatarContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#39FF14',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#1C1C1E',
+    shadowColor: '#39FF14',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  headerAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#2C2C2E',
+  },
   dateText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#8E8E93',
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: 1.5,
     marginBottom: 4,
+    textTransform: 'uppercase',
   },
   header: {
-    fontSize: 38,
+    fontSize: 32,
+    fontWeight: '300',
+    color: 'rgba(255, 255, 255, 0.85)',
+    letterSpacing: -0.5,
+  },
+  headerName: {
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginTop: 4,
+    fontWeight: '500',
   },
   heroWrapper: {
     marginBottom: 40,

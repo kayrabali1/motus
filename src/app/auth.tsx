@@ -14,7 +14,12 @@ import {
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { FontAwesome } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useMotusStore } from '../store/useStore';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width } = Dimensions.get('window');
 
@@ -72,7 +77,18 @@ export function AuthInput({ icon, onFocus, onBlur, ...props }: AuthInputProps) {
 
 export default function AuthScreen() {
   const router = useRouter();
-  const { signUp, signIn, requestResetCode, resetPassword, authLoading, authError, clearAuthError, token } = useMotusStore();
+  const { 
+    signUp, 
+    signIn, 
+    signInWithGoogle, 
+    signInWithApple, 
+    requestResetCode, 
+    resetPassword, 
+    authLoading, 
+    authError, 
+    clearAuthError, 
+    token 
+  } = useMotusStore();
 
   const [isLogin, setIsLogin] = useState(true);
   const [forgotMode, setForgotMode] = useState(false);
@@ -90,6 +106,20 @@ export default function AuthScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null); // For developer testing visibility
 
+  const [socialLoading, setSocialLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+  const isFirstRender = React.useRef(true);
+
+  // Initialize Google Auth Session
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || '555323311848-example.apps.googleusercontent.com',
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || '555323311848-example.apps.googleusercontent.com',
+  });
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync().then(setIsAppleAvailable);
+  }, []);
+
   useEffect(() => {
     // If already logged in, redirect immediately
     if (token) {
@@ -98,7 +128,75 @@ export default function AuthScreen() {
   }, [token]);
 
   useEffect(() => {
-    // Clear errors when switching modes
+    if (googleResponse?.type === 'success') {
+      const { idToken } = googleResponse.authentication || {};
+      if (idToken) {
+        setSocialLoading(true);
+        signInWithGoogle(idToken).then((success) => {
+          setSocialLoading(false);
+          if (success) {
+            router.replace('/(tabs)');
+          }
+        });
+      } else {
+        setLocalError('Google login returned no ID token.');
+      }
+    }
+  }, [googleResponse]);
+
+  const handleGoogleLogin = async () => {
+    try {
+      setLocalError(null);
+      await promptGoogleAsync();
+    } catch (e: any) {
+      setLocalError(e.message || 'Google login failed.');
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      setLocalError(null);
+      setSocialLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (credential.identityToken) {
+        let fullName = undefined;
+        if (credential.fullName) {
+          const { givenName, familyName } = credential.fullName;
+          if (givenName) {
+            fullName = familyName ? `${givenName} ${familyName}` : givenName;
+          }
+        }
+
+        const success = await signInWithApple(credential.identityToken, fullName);
+        setSocialLoading(false);
+        if (success) {
+          router.replace('/(tabs)');
+        }
+      } else {
+        setSocialLoading(false);
+        setLocalError('Apple authentication failed: No identity token returned.');
+      }
+    } catch (e: any) {
+      setSocialLoading(false);
+      if (e.code === 'ERR_REQUEST_CANCELED') {
+        return;
+      }
+      setLocalError(e.message || 'Apple login failed.');
+    }
+  };
+
+  useEffect(() => {
+    // Clear errors when switching modes, but not on mount
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     clearAuthError();
     setLocalError(null);
     setSuccessMessage(null);
@@ -364,7 +462,7 @@ export default function AuthScreen() {
                   resetMode ? handleResetPassword :
                   handleAuth
                 }
-                disabled={authLoading}
+                disabled={authLoading || socialLoading}
               >
                 {authLoading ? (
                   <ActivityIndicator size="small" color="#000000" />
@@ -377,6 +475,53 @@ export default function AuthScreen() {
                 )}
               </TouchableOpacity>
             </View>
+
+            {/* Apple & Google Elegant Social Login Buttons */}
+            {!forgotMode && !resetMode && (
+              <>
+                <View style={styles.orContainer}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>or continue with</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                <View style={styles.socialButtonsContainer}>
+                  {/* Apple Login Button */}
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={handleAppleLogin}
+                    activeOpacity={0.8}
+                    disabled={authLoading || socialLoading}
+                  >
+                    {socialLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <FontAwesome name="apple" size={22} color="#FFFFFF" style={styles.socialIcon} />
+                        <Text style={styles.socialButtonText}>Apple</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Google Login Button */}
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={handleGoogleLogin}
+                    activeOpacity={0.8}
+                    disabled={authLoading || socialLoading}
+                  >
+                    {socialLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <FontAwesome name="google" size={18} color="#FFFFFF" style={styles.socialIcon} />
+                        <Text style={styles.socialButtonText}>Google</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
 
           {/* BACK TO LOGIN FOR FORGOT/RESET MODES */}
@@ -611,5 +756,47 @@ const styles = StyleSheet.create({
   },
   requirementTextValid: {
     color: '#39FF14',
+  },
+  orContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2C2C2E',
+  },
+  orText: {
+    color: '#8E8E93',
+    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '600',
+    textTransform: 'lowercase',
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    height: 60,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  socialIcon: {
+    marginRight: 10,
+  },
+  socialButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

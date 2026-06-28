@@ -12,11 +12,13 @@
       "entitlements": {
         "com.apple.developer.family-controls": true,
         "com.apple.security.application-groups": [
+          "group.com.kayrabali.Motus",
           "group.com.kayrabali.Motus"
         ]
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Motus needs access to the camera to validate your exercises."
+        "NSCameraUsageDescription": "Motus needs access to the camera to validate your exercises.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.kayrabali.Motus"
     },
@@ -47,11 +49,51 @@
         }
       ],
       "expo-secure-store",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Motus needs access to your photos to let you select a custom profile avatar."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.kayrabali.Motus.shield-config",
+                  "targetName": "MotusShieldConfiguration",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.kayrabali.Motus"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.kayrabali.Motus.shield-action",
+                  "targetName": "MotusShieldAction",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.kayrabali.Motus"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "8acdf373-d3ff-45d7-967d-c3c7d69b9116"
+      }
     }
   }
 }

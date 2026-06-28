@@ -24,11 +24,11 @@ public class MotusScreenTimeModule: Module {
       }
     }
 
-    AsyncFunction("showPicker") { (promise: Promise) in
+    AsyncFunction("showPicker") { (isPro: Bool, promise: Promise) in
       if #available(iOS 15.0, *) {
         DispatchQueue.main.async {
           let rootVC = UIApplication.shared.windows.first?.rootViewController
-          let pickerModel = PickerModel(promise: promise)
+          let pickerModel = PickerModel(isPro: isPro, promise: promise)
           let pickerView = ActivityPickerView(model: pickerModel)
           let hostingController = UIHostingController(rootView: pickerView)
           
@@ -44,7 +44,41 @@ public class MotusScreenTimeModule: Module {
         let savedData = UserDefaults.standard.data(forKey: "MotusBlockedApps")
         if let data = savedData {
           do {
-            let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
+            var selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
+            
+            // Check if user is Pro. Read from shared UserDefaults
+            let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus")
+            let isPro = sharedDefaults?.bool(forKey: "ProMemberStatus") ?? false
+            
+            if !isPro {
+              // Enforce 1-app limit
+              var apps = Array(selection.applicationTokens)
+              var cats = Array(selection.categoryTokens)
+              var webs = Array(selection.webDomainTokens)
+              let totalCount = apps.count + cats.count + webs.count
+              
+              if totalCount > 1 {
+                if !apps.isEmpty {
+                  selection.applicationTokens = Set([apps[0]])
+                  selection.categoryTokens = []
+                  selection.webDomainTokens = []
+                } else if !cats.isEmpty {
+                  selection.applicationTokens = []
+                  selection.categoryTokens = Set([cats[0]])
+                  selection.webDomainTokens = []
+                } else if !webs.isEmpty {
+                  selection.applicationTokens = []
+                  selection.categoryTokens = []
+                  selection.webDomainTokens = Set([webs[0]])
+                }
+                
+                // Save trimmed selection back to local UserDefaults
+                if let trimmedData = try? JSONEncoder().encode(selection) {
+                  UserDefaults.standard.set(trimmedData, forKey: "MotusBlockedApps")
+                }
+              }
+            }
+            
             store.shield.applications = selection.applicationTokens
             store.shield.applicationCategories = .specific(selection.categoryTokens)
           } catch {
@@ -122,7 +156,7 @@ public class MotusScreenTimeModule: Module {
         if let data = savedData {
           do {
             let selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
-            promise.resolve(selection.applicationTokens.count + selection.categoryTokens.count)
+            promise.resolve(selection.applicationTokens.count + selection.categoryTokens.count + selection.webDomainTokens.count)
           } catch {
             promise.resolve(0)
           }
@@ -132,6 +166,11 @@ public class MotusScreenTimeModule: Module {
       } else {
         promise.resolve(0)
       }
+    }
+
+    Function("setProMemberStatus") { (isPro: Bool) in
+      let sharedDefaults = UserDefaults(suiteName: "group.com.kayrabali.Motus")
+      sharedDefaults?.set(isPro, forKey: "ProMemberStatus")
     }
 
     AsyncFunction("showLockedApps") { (promise: Promise) in
@@ -154,9 +193,11 @@ public class MotusScreenTimeModule: Module {
 @available(iOS 15.0, *)
 class PickerModel: ObservableObject {
   let promise: Promise
+  let isPro: Bool
   @Published var selection = FamilyActivitySelection()
   
-  init(promise: Promise) {
+  init(isPro: Bool, promise: Promise) {
+    self.isPro = isPro
     self.promise = promise
     if let data = UserDefaults.standard.data(forKey: "MotusBlockedApps"),
        let savedSelection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
@@ -165,6 +206,14 @@ class PickerModel: ObservableObject {
   }
   
   func saveSelection() {
+    if !isPro {
+      let count = selection.applicationTokens.count + selection.categoryTokens.count + selection.webDomainTokens.count
+      if count > 1 {
+        promise.reject("LIMIT_EXCEEDED", "Free tier is limited to locking 1 app. Please upgrade to lock more.")
+        return
+      }
+    }
+    
     do {
       let data = try JSONEncoder().encode(selection)
       UserDefaults.standard.set(data, forKey: "MotusBlockedApps")

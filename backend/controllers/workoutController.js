@@ -167,7 +167,7 @@ exports.getStats = async (req, res) => {
         unlocks: totalUnlocks,
       },
       weeklyCalories: weeks,
-      activityLogs: activityLogs.slice(0, 10),
+      activityLogs: activityLogs.slice(0, 50),
     });
   } catch (error) {
     console.error('GetStats error:', error);

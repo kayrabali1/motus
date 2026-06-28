@@ -19,6 +19,7 @@ interface User {
   name: string;
   email: string;
   proMember: boolean;
+  avatarUrl?: string | null;
 }
 
 interface ActivityLog {
@@ -31,21 +32,7 @@ interface ActivityLog {
   unlockedApp?: string | null;
 }
 
-// Notification helpers
-async function requestNotificationPermissions() {
-  const settings = await Notifications.getPermissionsAsync();
-  if (settings.granted || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
-    return true;
-  }
-  const request = await Notifications.requestPermissionsAsync({
-    ios: {
-      allowAlert: true,
-      allowBadge: true,
-      allowSound: true,
-    },
-  });
-  return request.granted || request.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
-}
+
 
 interface MotusState {
   // App Config State
@@ -85,10 +72,14 @@ interface MotusState {
   // Auth Actions
   signUp: (name: string, email: string, password: string) => Promise<boolean>;
   signIn: (email: string, password: string) => Promise<boolean>;
+  signInWithGoogle: (idToken: string, name?: string) => Promise<boolean>;
+  signInWithApple: (identityToken: string, name?: string) => Promise<boolean>;
   requestResetCode: (email: string) => Promise<string | null>; // Returns code for test visibility
   resetPassword: (email: string, code: string, newPassword: string) => Promise<boolean>;
   updateProfileName: (name: string) => Promise<boolean>;
+  updateProfileAvatar: (base64Image: string) => Promise<boolean>;
   signOut: () => Promise<void>;
+  setProMember: (isPro: boolean) => Promise<void>;
   clearAuthError: () => void;
   
   // Workout Actions
@@ -175,6 +166,11 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       set({ token: data.token, user: data.user, authLoading: false });
       await SecureStore.setItemAsync('motus_token', data.token);
       await SecureStore.setItemAsync('motus_user', JSON.stringify(data.user));
+      try {
+        MotusScreenTime.setProMemberStatus(data.user?.proMember || false);
+      } catch (e) {
+        console.log('Failed to sync pro status in signup', e);
+      }
       
       // Load stats for new user
       await get().fetchStatsAndActivity();
@@ -201,12 +197,77 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       set({ token: data.token, user: data.user, authLoading: false });
       await SecureStore.setItemAsync('motus_token', data.token);
       await SecureStore.setItemAsync('motus_user', JSON.stringify(data.user));
+      try {
+        MotusScreenTime.setProMemberStatus(data.user?.proMember || false);
+      } catch (e) {
+        console.log('Failed to sync pro status in signin', e);
+      }
       
       // Load stats for logging in user
       await get().fetchStatsAndActivity();
       return true;
     } catch (e: any) {
       set({ authLoading: false, authError: e.message || 'Signin failed' });
+      return false;
+    }
+  },
+
+  signInWithGoogle: async (idToken, name) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, name }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Google authentication failed.');
+      }
+      
+      set({ token: data.token, user: data.user, authLoading: false });
+      await SecureStore.setItemAsync('motus_token', data.token);
+      await SecureStore.setItemAsync('motus_user', JSON.stringify(data.user));
+      try {
+        MotusScreenTime.setProMemberStatus(data.user?.proMember || false);
+      } catch (e) {
+        console.log('Failed to sync pro status in google signin', e);
+      }
+      
+      await get().fetchStatsAndActivity();
+      return true;
+    } catch (e: any) {
+      set({ authLoading: false, authError: e.message || 'Google signin failed' });
+      return false;
+    }
+  },
+
+  signInWithApple: async (identityToken, name) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/apple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identityToken, name }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Apple authentication failed.');
+      }
+      
+      set({ token: data.token, user: data.user, authLoading: false });
+      await SecureStore.setItemAsync('motus_token', data.token);
+      await SecureStore.setItemAsync('motus_user', JSON.stringify(data.user));
+      try {
+        MotusScreenTime.setProMemberStatus(data.user?.proMember || false);
+      } catch (e) {
+        console.log('Failed to sync pro status in apple signin', e);
+      }
+      
+      await get().fetchStatsAndActivity();
+      return true;
+    } catch (e: any) {
+      set({ authLoading: false, authError: e.message || 'Apple signin failed' });
       return false;
     }
   },
@@ -276,6 +337,31 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     }
   },
 
+  updateProfileAvatar: async (base64Image: string) => {
+    const { token } = get();
+    if (!token) return false;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ avatarUrl: base64Image }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        set({ user: data });
+        await SecureStore.setItemAsync('motus_user', JSON.stringify(data));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.log('Failed to update profile avatar', e);
+      return false;
+    }
+  },
+
   signOut: async () => {
     set({ 
       token: null, 
@@ -293,6 +379,29 @@ export const useMotusStore = create<MotusState>((set, get) => ({
     await SecureStore.deleteItemAsync('motus_today_unlocks');
     await SecureStore.deleteItemAsync('motus_activity_logs');
     await SecureStore.deleteItemAsync('motus_weekly_calories');
+    try {
+      MotusScreenTime.setProMemberStatus(false);
+    } catch (e) {
+      console.log('Failed to reset native pro member status', e);
+    }
+  },
+
+  setProMember: async (isPro) => {
+    const user = get().user;
+    if (user) {
+      const updatedUser = { ...user, proMember: isPro };
+      set({ user: updatedUser });
+      await SecureStore.setItemAsync('motus_user', JSON.stringify(updatedUser));
+    } else {
+      const guestUser = { name: 'Guest User', email: 'guest@motus.fit', proMember: isPro };
+      set({ user: guestUser });
+      await SecureStore.setItemAsync('motus_user', JSON.stringify(guestUser));
+    }
+    try {
+      MotusScreenTime.setProMemberStatus(isPro);
+    } catch (e) {
+      console.log('Failed to set native pro member status', e);
+    }
   },
 
   clearAuthError: () => {
@@ -333,7 +442,7 @@ export const useMotusStore = create<MotusState>((set, get) => ({
       calories: caloriesBurned,
       minutes,
       unlockedApp,
-      createdAt: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     };
 
     const updatedTodayReps = get().todayReps + reps;
@@ -449,28 +558,10 @@ export const useMotusStore = create<MotusState>((set, get) => ({
         const data = await response.json();
         const logs = data.activityLogs || [];
 
-        // Compute stats locally using user's current local date
         const now = new Date();
         const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-        let computedReps = 0;
-        let computedCalories = 0;
-        let computedUnlocks = 0;
-
-        logs.forEach((log: any) => {
-          const logDate = new Date(log.timestamp);
-          const logLocalStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
-          
-          if (logLocalStr === localTodayStr) {
-            computedReps += log.reps || 0;
-            computedCalories += log.calories || 0;
-            if (log.unlockedApp) {
-              computedUnlocks += 1;
-            }
-          }
-        });
-
-        // Adjust weeklyCalories for timezone shifts using the activityLogs
+        // 1. Adjust weeklyCalories for timezone shifts using the activityLogs
         const adjustedWeekly = data.weeklyCalories ? JSON.parse(JSON.stringify(data.weeklyCalories)) : [];
         logs.forEach((log: any) => {
           const utcDateStr = log.timestamp.split('T')[0];
@@ -492,6 +583,39 @@ export const useMotusStore = create<MotusState>((set, get) => ({
               if (localDayObj) {
                 localDayObj.calories += log.calories;
                 break;
+              }
+            }
+          }
+        });
+
+        // 2. Base today's calories on the adjusted weeklyCalories slot for today to ensure perfect alignment
+        let computedCalories = data.today?.calories ?? 0;
+        if (adjustedWeekly.length > 0) {
+          const currentWeekIndex = adjustedWeekly.length - 1;
+          const todayObj = adjustedWeekly[currentWeekIndex].find((item: any) => item.date === localTodayStr);
+          if (todayObj) {
+            computedCalories = todayObj.calories;
+          }
+        }
+
+        // 3. Adjust reps and unlocks based on timezone-shifted logs (to handle fallback to old backend stats)
+        let computedReps = data.today?.reps ?? 0;
+        let computedUnlocks = data.today?.unlocks ?? 0;
+        logs.forEach((log: any) => {
+          const utcDateStr = log.timestamp.split('T')[0];
+          const logDate = new Date(log.timestamp);
+          const logLocalStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+          
+          if (utcDateStr !== logLocalStr) {
+            if (logLocalStr === localTodayStr) {
+              computedReps += log.reps || 0;
+              if (log.unlockedApp) {
+                computedUnlocks += 1;
+              }
+            } else if (utcDateStr === localTodayStr) {
+              computedReps = Math.max(0, computedReps - (log.reps || 0));
+              if (log.unlockedApp) {
+                computedUnlocks = Math.max(0, computedUnlocks - 1);
               }
             }
           }
@@ -581,6 +705,12 @@ export const useMotusStore = create<MotusState>((set, get) => ({
         activityLogs: parsedLogs,
         weeklyCalories: parsedWeekly,
       });
+
+      try {
+        MotusScreenTime.setProMemberStatus(user?.proMember || false);
+      } catch (e) {
+        console.log('Failed to sync pro status in loadState', e);
+      }
 
       if (token) {
         // Sync stats

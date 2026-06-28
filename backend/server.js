@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Public health check
 app.get('/health', (req, res) => {
@@ -22,6 +22,8 @@ app.post('/api/auth/signup', authController.signup);
 app.post('/api/auth/signin', authController.signin);
 app.post('/api/auth/forgot-password', authController.forgotPassword);
 app.post('/api/auth/reset-password', authController.resetPassword);
+app.post('/api/auth/google', authController.googleLogin);
+app.post('/api/auth/apple', authController.appleLogin);
 
 // Protected Workout Routes
 app.put('/api/users/profile', authMiddleware, authController.updateProfile);

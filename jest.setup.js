@@ -101,6 +101,7 @@ const mockScreenTime = {
   showPicker: jest.fn(() => Promise.resolve(true)),
   getPendingUnlockAppName: jest.fn(() => Promise.resolve(null)),
   hasPendingUnlock: jest.fn(() => Promise.resolve(false)),
+  setProMemberStatus: jest.fn(),
 };
 
 jest.mock('../../modules/motus-screen-time/src/MotusScreenTimeModule', () => ({

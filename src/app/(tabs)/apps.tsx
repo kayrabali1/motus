@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import { SymbolView } from 'expo-symbols';
 import * as Notifications from 'expo-notifications';
 import MotusScreenTime from '../../../modules/motus-screen-time/src/MotusScreenTimeModule';
+import { useRouter } from 'expo-router';
 import { useMotusStore } from '../../store/useStore';
 
 const EXERCISES = [
@@ -16,7 +17,8 @@ const EXERCISES = [
 ];
 
 export default function AppsScreen() {
-  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount, setLockExpiration } = useMotusStore();
+  const router = useRouter();
+  const { loadState, selectedExercise, setExercise, repCount, setRepCount, getEarnedMinutes, activeLockCount, setActiveLockCount, setLockExpiration, user } = useMotusStore();
 
 
   async function requestNotificationPermission() {
@@ -43,7 +45,8 @@ export default function AppsScreen() {
       }
 
       await MotusScreenTime.requestAuthorization();
-      const success = await MotusScreenTime.showPicker();
+      const isPro = user?.proMember || false;
+      const success = await MotusScreenTime.showPicker(isPro);
       if (success) {
         MotusScreenTime.blockApps();
         const count = await MotusScreenTime.getActiveLockCount();
@@ -53,7 +56,19 @@ export default function AppsScreen() {
         }
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to configure Screen Time.");
+      if (e.message?.includes("LIMIT_EXCEEDED") || e.code === "LIMIT_EXCEEDED") {
+        Alert.alert(
+          "Motus Pro Required",
+          "Free members can only lock 1 app. Please select exactly 1 app or upgrade to Motus Pro to lock unlimited apps and access automation features.",
+          [
+            { text: "Upgrade to Pro", onPress: () => router.push('/settings') },
+            { text: "Choose 1 App", onPress: () => handleSelectApps() },
+            { text: "Cancel", style: "cancel" }
+          ]
+        );
+      } else {
+        Alert.alert("Error", e.message || "Failed to configure Screen Time.");
+      }
     }
   };
 

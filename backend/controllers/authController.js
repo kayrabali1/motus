@@ -2,6 +2,8 @@ const db = require('../db');
 const { FieldValue } = require('@google-cloud/firestore');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const jwksClient = require('jwks-rsa');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'motus-super-secret-key-12345';
 const usersCollection = db.collection('users');
@@ -40,6 +42,7 @@ exports.signup = async (req, res) => {
         name,
         email: sanitizedEmail,
         proMember: newUser.proMember,
+        avatarUrl: null,
       }
     });
   } catch (error) {
@@ -78,6 +81,7 @@ exports.signin = async (req, res) => {
         name: userData.name,
         email: sanitizedEmail,
         proMember: userData.proMember || false,
+        avatarUrl: userData.avatarUrl || null,
       }
     });
   } catch (error) {
@@ -166,26 +170,164 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ error: 'Failed to reset password.' });
   }
 };
-
 exports.updateProfile = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, avatarUrl } = req.body;
     const email = req.user.email;
 
-    if (!name) {
-      return res.status(400).json({ error: 'Name is required.' });
+    if (!name && avatarUrl === undefined) {
+      return res.status(400).json({ error: 'Name or avatar is required.' });
     }
 
+    const updates = {};
+    if (name) updates.name = name;
+    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+
     const userDocRef = usersCollection.doc(email);
-    await userDocRef.update({ name });
+    await userDocRef.update(updates);
+
+    const updatedDoc = await userDocRef.get();
+    const updatedData = updatedDoc.data();
 
     res.status(200).json({
-      name,
-      email,
-      proMember: true
+      name: updatedData.name,
+      email: updatedData.email,
+      proMember: updatedData.proMember || true,
+      avatarUrl: updatedData.avatarUrl || null
     });
   } catch (error) {
     console.error('UpdateProfile error:', error);
     res.status(500).json({ error: 'Failed to update profile.' });
+  }
+};
+
+const googleClient = new OAuth2Client();
+
+exports.googleLogin = async (req, res) => {
+  try {
+    const { idToken, name: reqName } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: 'Google ID token is required.' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({ idToken });
+    const payload = ticket.getPayload();
+
+    const email = payload.email.toLowerCase().trim();
+    const googleId = payload.sub;
+    const name = reqName || payload.name || email.split('@')[0];
+
+    const userDocRef = usersCollection.doc(email);
+    let userDoc = await userDocRef.get();
+    let userData;
+
+    if (!userDoc.exists) {
+      userData = {
+        name,
+        email,
+        googleId,
+        proMember: true,
+        createdAt: new Date().toISOString(),
+      };
+      await userDocRef.set(userData);
+    } else {
+      userData = userDoc.data();
+      if (!userData.googleId) {
+        await userDocRef.update({ googleId });
+        userData.googleId = googleId;
+      }
+    }
+
+    const token = jwt.sign({ email, name: userData.name }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.status(200).json({
+      token,
+      user: {
+        name: userData.name,
+        email,
+        proMember: userData.proMember || false,
+        avatarUrl: userData.avatarUrl || null,
+      }
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(400).json({ error: 'Invalid Google ID token.' });
+  }
+};
+
+const appleJwksClient = jwksClient({
+  jwksUri: 'https://appleid.apple.com/auth/keys'
+});
+
+function getAppleSigningKey(header, callback) {
+  appleJwksClient.getSigningKey(header.kid, function(err, key) {
+    if (err) {
+      return callback(err);
+    }
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+exports.appleLogin = async (req, res) => {
+  try {
+    const { identityToken, name: reqName } = req.body;
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Apple Identity token is required.' });
+    }
+
+    const decoded = await new Promise((resolve, reject) => {
+      jwt.verify(identityToken, getAppleSigningKey, {
+        issuer: 'https://appleid.apple.com'
+      }, (err, decodedToken) => {
+        if (err) reject(err);
+        else resolve(decodedToken);
+      });
+    });
+
+    const email = decoded.email ? decoded.email.toLowerCase().trim() : null;
+    const appleId = decoded.sub;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email could not be retrieved from Apple identity token.' });
+    }
+
+    const name = reqName || email.split('@')[0];
+
+    const userDocRef = usersCollection.doc(email);
+    let userDoc = await userDocRef.get();
+    let userData;
+
+    if (!userDoc.exists) {
+      userData = {
+        name,
+        email,
+        appleId,
+        proMember: true,
+        createdAt: new Date().toISOString(),
+      };
+      await userDocRef.set(userData);
+    } else {
+      userData = userDoc.data();
+      if (!userData.appleId) {
+        await userDocRef.update({ appleId });
+        userData.appleId = appleId;
+      }
+    }
+
+    const token = jwt.sign({ email, name: userData.name }, JWT_SECRET, { expiresIn: '30d' });
+
+    res.status(200).json({
+      token,
+      user: {
+        name: userData.name,
+        email,
+        proMember: userData.proMember || false,
+        avatarUrl: userData.avatarUrl || null,
+      }
+    });
+  } catch (error) {
+    console.error('Apple login error:', error);
+    res.status(400).json({ error: 'Invalid Apple Identity token.' });
   }
 };
